@@ -62,7 +62,7 @@ niko_rada/
 │   ├── corpus/cards.jsonl       # vetted knowledge cards (bilingual fields)
 │   └── corpus/SOURCES.md        # provenance + verification log
 ├── notebook/
-│   └── nikorada_demo.ipynb        # clonable Kaggle notebook (submission-safe fallback)
+│   └── notebook.ipynb              # clonable Kaggle notebook (submission-safe fallback)
 └── assets/demo_backup.mp4        # recorded airplane-mode run (insurance)
 ```
 
@@ -165,7 +165,7 @@ niko_rada/
 
 **Goal:** a submission-safe demo that never depends on the device build.
 
-- [ ] `notebook/nikorada_demo.ipynb`: runs the grounded RAG + Gemma pipeline (via any available Gemma 4 runner) end-to-end, showing grounded answers + extraction on the same corpus.
+- [x] `notebook/notebook.ipynb`: runs the grounded RAG + Gemma pipeline (via any available Gemma 4 runner) end-to-end, showing grounded answers + extraction on the same corpus.
 - [ ] Make it clonable and run top-to-bottom.
 
 **Acceptance:** notebook runs clean start-to-finish; usable as the "live demo" attachment if the APK isn't ready.
