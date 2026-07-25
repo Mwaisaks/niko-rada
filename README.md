@@ -55,11 +55,31 @@ flutter run -d linux   # or macos/windows/android — same Dart API everywhere
 
 On first run you'll hit the download screen (F0): it pulls the `.litertlm` Gemma 4 E2B weights (~2.6 GB) from `litert-community/gemma-4-E2B-it-litert-lm` on Hugging Face. Do this on Wi-Fi. After that, the app makes **zero network calls at inference time** — you can turn on airplane mode and it still answers.
 
-Android: `minSdk 26` (required by `flutter_gemma`'s `.litertlm` engine). Build a release APK with:
+Android: `minSdk 26` (required by `flutter_gemma`'s `.litertlm` engine). Requires the Android SDK (platform 36, build-tools 36.0.0) — `flutter doctor` will tell you if it's missing; see the Android setup note below if so. Build a debug or release APK with:
 
 ```bash
-flutter build apk --release
+flutter build apk --debug --target-platform android-arm64    # verified building clean, see status below
+flutter build apk --release --target-platform android-arm64
 ```
+
+**Always pass `--target-platform android-arm64`.** `flutter_gemma_litertlm` only ships a prebuilt native library for `android_arm64` (no `armeabi-v7a`/`x86_64` build exists), so a non-restricted APK would install and then crash with `dlopen` on any non-arm64 device anyway. `android/app/build.gradle.kts` also declares `ndk.abiFilters = ["arm64-v8a"]`, but note: the Flutter Gradle plugin unconditionally resets `abiFilters` to its own full platform list on every build unless `-Pdisable-abi-filtering=true` is also passed (there's no clean `flutter build apk` CLI flag for that), so the declared `abiFilters` alone does **not** trim third-party AAR native libs (e.g. `sqlite3_flutter_libs`, the `jni` package) down to arm64-only — only `--target-platform android-arm64` reliably restricts Flutter's own engine + Dart AOT snapshot. In practice this leaves ~3 MB of harmless unused `armeabi-v7a`/`x86_64` `.so` files (`libsqlite3.so`, `libdartjni.so`) in the APK; the on-device inference layer (`libLiteRtLm.so` and its accelerators/companions) is correctly arm64-only either way since Native Assets only ever fetches the `android_arm64` bundle.
+
+Verified locally (2026-07-25, desktop-only, no phone): `flutter build apk --debug --target-platform android-arm64` builds clean (`✓ Built build/app/outputs/flutter-apk/app-debug.apk`, ~196 MB), `flutter analyze` stays at 0 issues. **This confirms the build compiles and packages correctly — it does not confirm on-device inference runs**, which is still unverified on real hardware (see `docs/PHONE_TEST.md`).
+
+### Android SDK setup (if `flutter doctor` shows no Android toolchain)
+
+```bash
+mkdir -p ~/Android/Sdk/cmdline-tools
+curl -sSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+cd /tmp && unzip -q cmdline-tools.zip && mv cmdline-tools ~/Android/Sdk/cmdline-tools/latest
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+yes | sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+flutter config --android-sdk "$ANDROID_HOME"
+```
+
+Add the `export` lines to your shell profile (`~/.zshrc`/`~/.bashrc`) so they persist. No Android Studio needed — the command-line tools are sufficient. The NDK (28.2.13676358) and a couple of extra platforms get auto-installed by the first Gradle build itself (licenses must already be accepted, hence the step above).
 
 ### Known issue: `libLiteRtLm` native library
 
@@ -67,11 +87,11 @@ flutter build apk --release
 
 ```bash
 flutter clean
-rm -rf ~/.pub-cache/hosted/pub.dev/flutter_gemma_litertlm-*/  # clear the native cache
+rm -rf ~/.cache/flutter_gemma/native        # Linux; macOS: ~/Library/Caches/flutter_gemma/native
 flutter pub get
 ```
 
-This is the specific failure mode documented in `WRITEUP.md` — see there for the current status of resolving it.
+This is a known limitation of Dart's Native Assets build hooks (shared-library "ownership" tracked across builds — see the package's own README troubleshooting section for the exact mechanism). It's the specific failure mode documented in `WRITEUP.md` — see there for the current status of resolving it on the desktop Linux build specifically (separate from the Android path this section covers).
 
 ## Running the notebook
 
