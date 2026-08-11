@@ -10,9 +10,9 @@
 - **Delivery:** installable APK + clonable notebook (submission-safe fallback)
 - **This document is the scope + Codex build spec. `PLAN.md` is the phased build.**
 
-> Name: **Niko Rada** ("I'm aware" / "I'm informed" — Sheng/Kiswahili). Earlier drafts of this document used the
-> working name "Salama" (safety/peace) throughout; every instance below refers to the same product now shipping
-> as Niko Rada.
+> Name: **Niko Rada** ("stay alert" — common Kiswahili-Sheng phrase, used here descriptively). Earlier drafts of this
+> document used the working name "Salama" (safety/peace), then "Niko Rada"; every instance below refers to the
+> same product now shipping as Niko Rada.
 >
 > **Architecture pattern credit:** the on-device-Flutter-Gemma approach (install-once-then-offline, per-agent tool scoping, cited + confidence-gated outputs, multilingual code-switch) is modelled on Eugene Mutembei's *The Campus Collective* (GDG Embu). Niko Rada is a distinct product — different domain (protest/blackout safety, not campus survival), different corpus, different scenario, and a deliberately simpler agent design.
 

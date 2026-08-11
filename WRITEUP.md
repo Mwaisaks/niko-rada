@@ -2,7 +2,7 @@
 
 *Build with Gemma — GDG on Campus UoN · Track: Civic Engagement & Accessibility*
 
-**Niko Rada** — "I'm aware," in Sheng/Kiswahili.
+**Niko Rada** — "stay alert," a common Kiswahili-Sheng phrase, used here descriptively.
 
 ---
 

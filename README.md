@@ -4,7 +4,9 @@
 
 Built for *Build with Gemma: GDG on Campus UoN* — Track: Civic Engagement & Accessibility.
 
-Niko Rada ("I'm aware" — Sheng/Kiswahili) is an Android app where **Gemma 4 E2B runs entirely on the phone**. Install it once on Wi-Fi; after that it gives grounded, cited, bilingual (English/Kiswahili/Sheng) safety guidance in airplane mode — during a protest, a blackout, or any moment the network is cut. Nothing it processes ever leaves the device.
+Niko Rada is an Android app where **Gemma 4 E2B runs entirely on the phone**. Install it once on Wi-Fi; after that it gives grounded, cited, bilingual (English/Kiswahili/Sheng) safety guidance in airplane mode — during a protest, a blackout, or any moment the network is cut. Nothing it processes ever leaves the device.
+
+"Niko Rada" is a common Kiswahili-Sheng phrase meaning "stay alert"; used here descriptively.
 
 Full product spec: [`DESIGN.md`](DESIGN.md). Build plan: [`PLAN.md`](PLAN.md). Submission writeup: [`WRITEUP.md`](WRITEUP.md).
 
