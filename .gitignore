@@ -44,3 +44,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Secrets and Firebase config (repo is public — never commit these)
+.env
+.env.*
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+*service-account*.json
+*.keystore
+*.jks
+key.properties
+local.properties
+# App Check debug tokens, if written to a file locally
+*appcheck*debug*token*
