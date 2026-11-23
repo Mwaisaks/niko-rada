@@ -1,3 +1,14 @@
+import java.util.Properties
+
+// Optional App Check debug token for remote testers (no logcat needed). NEVER commit it.
+// Source, in order: env NIKO_RADA_APP_CHECK_DEBUG_TOKEN, then `nikoRada.appCheckDebugToken=` in android/local.properties
+// (gitignored). firebase-appcheck-debug reads R.string.firebase_app_check_debug_token in debuggable builds only.
+val appCheckDebugToken: String = System.getenv("NIKO_RADA_APP_CHECK_DEBUG_TOKEN")
+    ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { f ->
+        Properties().apply { f.inputStream().use { load(it) } }.getProperty("nikoRada.appCheckDebugToken")
+    }
+    ?: ""
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -26,7 +37,15 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    buildFeatures {
+        resValues = true
+    }
+
     buildTypes {
+        debug {
+            // Empty unless a token is supplied (see top of file); empty means the SDK generates one and logs it.
+            resValue("string", "firebase_app_check_debug_token", appCheckDebugToken)
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

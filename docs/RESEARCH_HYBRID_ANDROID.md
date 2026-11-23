@@ -68,12 +68,47 @@ Sources: https://pub.dev/packages/firebase_ai · https://firebase.google.com/doc
 - The SDK does **not** report *why* it fell back. The spike derives a reason from `onDeviceExtension.checkStatus()`
   before the call plus device connectivity (diagnostic only; routing is still the SDK's).
 
+## (e) App Check for a remote tester without logcat (researched 23 Nov)
+Sources: https://firebase.google.com/docs/app-check/android/debug-provider ·
+https://firebase.google.com/docs/ai-logic/app-check · https://firebase.google.com/docs/app-check/enable-enforcement ·
+plus `firebase-appcheck-debug:20.1.0` inspected with `javap`.
+
+**(a) Pre-registered debug secret — works, but the build-time route is not on the Android docs page.**
+- Docs confirm: tokens can be created in the console (App Check → Apps → ⋮ → Manage debug tokens); for CI the token is
+  passed as the instrumentation argument `firebaseAppCheckDebugSecret` (tests only). The Android page shows no way to set
+  the secret for a normal app launch.
+- The library itself (20.1.0) resolves the secret in this order: an internal provider hook → string resource
+  **`firebase_app_check_debug_token`** (used only if the app is debuggable; release builds log a security warning and
+  ignore it) → a UUID saved in SharedPreferences → a new UUID logged to logcat. Its log text also suggests
+  `firebase appcheck:debugtokens:create` (Firebase CLI) and "then rebuild the app".
+- Implemented on the spike branch: `android/app/build.gradle.kts` sets that resource for **debug builds only** from
+  `NIKO_RADA_APP_CHECK_DEBUG_TOKEN` or `nikoRada.appCheckDebugToken` in `android/local.properties` (gitignored).
+  Verified by building with a fake token and reading it back from the APK with `aapt2`. **Not yet verified against
+  the real App Check backend** (needs the Firebase project).
+
+**(b) Leaving App Check unenforced — possible until 21 Jan 2027, but may not be enough.**
+- Docs: "On November 2, 2026, Firebase automatically enforced Firebase App Check for Firebase AI Logic in all projects."
+  A new project is therefore expected to start enforced. Unenforcing is "strongly NOT recommended" and possible until
+  21 Jan 2027, when it is re-enforced permanently.
+- Console path: Security → App Check → **APIs** tab → Firebase AI Logic → *Set up* → Baseline protection
+  "Unenforced (monitoring only)".
+- Catch: for "certain commonly abused models" a request without a valid token gets `PERMISSION_DENIED: To access this
+  model, you must enforce Firebase App Check...` even when unenforced. The docs do not list which models; whether
+  `gemini-3.5-flash-lite` is one is **unconfirmed**.
+- Enforcement changes can take up to 15 minutes to apply (stated for enabling; no time stated for disabling).
+
+**Recommendation:** use (a). It keeps enforcement on and gives a remote tester a working build. Use (b) only as a
+short-lived fallback if (a) fails, and re-enforce immediately after.
+
 ## Could not confirm
 - Exact behaviour of `PREFER_ON_DEVICE` / `ONLY_ON_DEVICE` when **offline** on an unsupported phone (expected: error;
   test C.5 in `SPIKE_CHECKLIST.md`).
 - Whether Nano answers Kiswahili / Sheng acceptably (not validated by Google).
 - Whether `systemInstruction` is honoured on-device (not stated). The spike passes everything in the prompt.
 - Whether the App Check console flow requires registering Play Integrity before debug tokens can be added.
+- Whether a build-time `firebase_app_check_debug_token` is accepted by the real App Check backend (code path confirmed,
+  not yet exercised).
+- Which "commonly abused" models reject unverified requests even with App Check unenforced.
 - Pricing / quota numbers for the cloud model on the free plan (pricing and quota pages not read).
 - Whether emulators can run the on-device path (docs silent; assume no).
 - The models page was partly truncated when read; model names were cross-checked against two pages only.

@@ -1,6 +1,8 @@
 package com.nikorada.niko_rada
 
+import android.app.ActivityManager
 import android.content.Context
+import android.os.Build
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.SystemClock
@@ -37,6 +39,8 @@ import kotlinx.coroutines.launch
  * connectivity) so the UI can explain WHY a request went to the cloud, which the SDK does not report.
  *
  * Methods (channel "niko_rada/hybrid_inference"):
+ *  - deviceInfo                                   -> {manufacturer, model, androidVersion, sdkInt, totalRamGb,
+ *                                                     firebaseConfigured, appCheckBuildToken} (nothing personal)
  *  - status   {cloudModel?}                       -> {firebaseConfigured, onDeviceStatus, online}
  *  - download {cloudModel?}                       -> {onDeviceStatus, downloadResult, bytesDownloaded, error?}
  *  - generate {prompt, mode, cloudModel?, maxOutputTokens?}
@@ -69,6 +73,7 @@ class HybridInferencePlugin(private val context: Context, messenger: BinaryMesse
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            "deviceInfo" -> result.success(deviceInfo())
             "status" -> scope.launch { handleStatus(call, result) }
             "download" -> scope.launch { handleDownload(call, result) }
             "generate" -> scope.launch { handleGenerate(call, result) }
@@ -185,6 +190,23 @@ class HybridInferencePlugin(private val context: Context, messenger: BinaryMesse
             val code = if (e is FirebaseAIException) e.javaClass.simpleName else "NATIVE_${e.javaClass.simpleName}"
             result.error(code, e.message ?: e.toString(), diagnostics)
         }
+    }
+
+    /** Hardware/OS facts for the tester's report. No identifiers (no serial, IMEI, account, or token value). */
+    private fun deviceInfo(): Map<String, Any?> {
+        val mem = ActivityManager.MemoryInfo()
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(mem)
+        val tokenResId = context.resources.getIdentifier("firebase_app_check_debug_token", "string", context.packageName)
+        val hasBuildToken = tokenResId != 0 && context.getString(tokenResId).isNotBlank()
+        return mapOf(
+            "manufacturer" to Build.MANUFACTURER,
+            "model" to Build.MODEL,
+            "androidVersion" to Build.VERSION.RELEASE,
+            "sdkInt" to Build.VERSION.SDK_INT,
+            "totalRamGb" to Math.round(mem.totalMem / 1e9 * 10) / 10.0,
+            "firebaseConfigured" to FirebaseApp.getApps(context).isNotEmpty(),
+            "appCheckBuildToken" to hasBuildToken,
+        )
     }
 
     // ---------------------------------------------------------------------------------------------

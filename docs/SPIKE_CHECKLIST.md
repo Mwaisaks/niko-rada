@@ -55,6 +55,37 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 Keep the app in the **foreground** during every on-device test (on-device inference is foreground-only).
 Useful logs: `adb logcat -s NikoRadaHybrid` (route, status, latency per call).
 
+## B2. Remote tester (no dev tools, no logcat)
+
+The App Check debug provider normally prints a fresh token to logcat that you then register. A remote tester can't
+read logcat, so pre-register a token and build it into the APK instead (debug builds only).
+
+1. Console → *Security → App Check → Apps* → your Android app → ⋮ → **Manage debug tokens** → **Generate token**
+   (or add one). Copy it. Name it after the tester's phone.
+2. Put it in **`android/local.properties`** (gitignored; never in a tracked file):
+   ```
+   nikoRada.appCheckDebugToken=PASTE-TOKEN-HERE
+   ```
+   (or `export NIKO_RADA_APP_CHECK_DEBUG_TOKEN=...` in the shell that runs the build).
+3. Make sure `android/app/google-services.json` is in place.
+4. Build the APK to send:
+   ```bash
+   git checkout spike/hybrid-inference
+   flutter pub get
+   flutter build apk --debug -t lib/main_spike.dart --target-platform android-arm64
+   ```
+   Output: `build/app/outputs/flutter-apk/app-debug.apk` (~215 MB, arm64 phones only).
+   Confirm the token is in it without printing it:
+   `aapt2 dump resources build/app/outputs/flutter-apk/app-debug.apk | grep -c firebase_app_check_debug_token` → 1,
+   and the app's device line must not say "Firebase NOT configured".
+5. Send the APK by Google Drive / WhatsApp document. The tester allows "Install unknown apps" for that app, installs,
+   opens **Hybrid inference test**, follows the on-screen steps 1–4 and pastes the **Copy results** text back to you.
+6. Treat the APK like a password: anyone with it can call the project's Gemini quota until you **delete the token**
+   in Manage debug tokens. Delete it after the test.
+
+The report contains device model, Android version, RAM, statuses, routes, latency and error codes. It does not include
+anything the tester types (custom prompts are marked "text omitted"), the token, or device identifiers.
+
 ## C. Phone 1 — your 4 GB phone (expected: cloud path)
 
 Not on the ML Kit Prompt API device list, so on-device should be `UNAVAILABLE`.

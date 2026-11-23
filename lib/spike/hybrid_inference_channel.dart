@@ -78,6 +78,9 @@ class HybridInferenceChannel {
 
   HybridInferenceChannel([MethodChannel? channel]) : _channel = channel ?? const MethodChannel(channelName);
 
+  /// Device model, Android version, RAM, and whether Firebase / an App Check build token are present.
+  Future<Map<Object?, Object?>> deviceInfo() => _invoke('deviceInfo', const {});
+
   Future<HybridStatus> status({String? cloudModel}) async {
     final m = await _invoke('status', {'cloudModel': cloudModel});
     return HybridStatus(
