@@ -119,6 +119,12 @@ HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native r
 - Single-turn calls only; 2 retrieved cards by default; on-device for short English-friendly work, verified corpus
   Kiswahili shown directly, free-form Kiswahili/Sheng generation in the cloud with consent.
 
+### 2026-11-23 — Leave git history alone (chat log stays in the first commit). Confirmed by owner.
+- `Building Niko Rada Offline App.md` (exported IDE chat log) was removed from the tree but remains in commit `cf5e47a`.
+- Why: it holds no secrets (only a local username and folder paths). Rewriting history would change every commit hash,
+  including the pre-window baseline `c745a39` used for the "what we built during the window" summary, and would need
+  force-pushes of every branch plus a GitHub cache purge.
+
 ## Open risks (from Phase 0 research; unconfirmed)
 1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design
    above; test on the Nano phone (Phase 4 matrix row).
