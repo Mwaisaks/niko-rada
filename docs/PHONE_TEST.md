@@ -1,5 +1,8 @@
 # Phone test checklist
 
+> **Superseded:** this checklist is for the old `flutter_gemma` / Gemma 4 E2B build. For the Firebase AI Logic hybrid build,
+> see `docs/SPIKE_CHECKLIST.md`.
+
 Prepared 2026-07-25, on a desktop/laptop with no Android device and no Android SDK
 available yet (see `README.md` for the SDK setup that was done this session). This
 is the ordered checklist for the first real-hardware session — **do not skip steps

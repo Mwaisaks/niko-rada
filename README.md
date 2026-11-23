@@ -8,7 +8,7 @@ Niko Rada is an Android app where **Gemma 4 E2B runs entirely on the phone**. In
 
 "Niko Rada" is a common Kiswahili-Sheng phrase meaning "stay alert"; used here descriptively.
 
-Full product spec: [`DESIGN.md`](DESIGN.md). Build plan: [`PLAN.md`](PLAN.md). Submission writeup: [`WRITEUP.md`](WRITEUP.md).
+Full product spec: [`DESIGN.md`](DESIGN.md). Build plan: [`docs/PLAN.md`](docs/PLAN.md) (old sprint plan: [`docs/archive/PLAN-gemma-sprint-2026-07.md`](docs/archive/PLAN-gemma-sprint-2026-07.md)). Submission writeup: [`WRITEUP.md`](WRITEUP.md).
 
 ---
 
@@ -105,4 +105,4 @@ Every knowledge card in `assets/corpus/cards.jsonl` cites a real authoritative s
 
 ## License
 
-No license file is currently included; treat as all-rights-reserved pending an explicit license decision.
+Apache License 2.0 — see [`LICENSE`](LICENSE).
