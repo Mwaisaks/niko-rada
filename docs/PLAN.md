@@ -25,8 +25,8 @@ Hardware facts and risks:
 4. On-device is experimental (Firebase) / beta (ML Kit); foreground-only; per-app quota (`BUSY`).
 
 ## Phase 0 — Mon 23 Nov: setup, audit, feasibility
-- [ ] Repo hygiene: Apache-2.0 `LICENSE`, `.gitignore` covers Firebase config/secrets, secrets scan of tree + history.
-- [ ] Audit the repo and fill the AUDIT section in `docs/NIKO_RADA_CONTEXT.md`; run existing tests.
+- [x] Repo hygiene: Apache-2.0 `LICENSE`, `.gitignore` covers Firebase config/secrets, secrets scan of tree + history.
+- [x] Audit the repo and fill the AUDIT section in `docs/NIKO_RADA_CONTEXT.md`; run existing tests.
 - [ ] Research the current Firebase AI Logic hybrid docs for Android (APIs, modes, device list, route indicator, Flutter support).
 - [ ] **Spike** on branch `spike/hybrid-inference`: Kotlin wrapper over the Firebase hybrid SDK + MethodChannel + debug screen
       showing response and route. Builds cleanly without committed secrets.
