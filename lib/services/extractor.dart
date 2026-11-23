@@ -26,10 +26,9 @@ class ExtractorService {
   final StoreService _store;
   final _uuid = const Uuid();
 
-  /// Out-of-corpus gate: exactly the rule the Guide step uses in GemmaService.answer(). If retrieval finds no
-  /// verified card for the text in the user's language, the text never reaches the model.
-  bool isInCorpus(String freeText, {String lang = 'en'}) =>
-      _rag.retrieveTopK(freeText, lang: lang).isNotEmpty;
+  /// Out-of-corpus gate: the same RagService gate the Guide step uses in GemmaService.answer(). If no verified card
+  /// passes it, the text never reaches the model.
+  bool isInCorpus(String freeText, {String lang = 'en'}) => _rag.passesGate(freeText, lang: lang);
 
   /// Extracts an IncidentReport from [freeText] (text or voice transcript).
   /// Saves the report to the local pending-send queue.

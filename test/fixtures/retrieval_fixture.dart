@@ -66,8 +66,7 @@ const inCorpusQueries = <InCorpusQuery>[
   InCorpusQuery('Ninahitaji wakili', 'sw', 'contacts', {'contacts-lsk-001', 'contacts-001'}),
 ];
 
-/// Sheng panic queries: reported for information, not asserted (Sheng uses the Kiswahili card text, and the mixed
-/// English words often only exist in the English fields).
+/// Sheng panic queries (asserted at top 4). Sheng mixes Kiswahili and English, so retrieval matches both card fields.
 const shengPanicQueries = <InCorpusQuery>[
   InCorpusQuery('Kuna tear gas hapa. Nisaidie!', 'sheng', 'first_aid', {'teargas-001', 'teargas-002'}, panic: true),
   InCorpusQuery('Kuna mtu ananifuata. Help!', 'sheng', 'evasion_safety', {'evasion-001'}, panic: true),

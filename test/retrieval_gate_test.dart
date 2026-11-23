@@ -21,6 +21,51 @@ void main() {
     }
   });
 
+  group('Sheng panic-button queries retrieve a sensible card (top 4)', () {
+    for (final q in shengPanicQueries) {
+      test('[sheng] PANIC ${q.query}', () {
+        final ids = rag.retrieveTopK(q.query, lang: q.lang).map((c) => c.id).toList();
+        expect(ids.any(q.expected.contains), isTrue, reason: 'expected one of ${q.expected}, got $ids');
+      });
+    }
+  });
+
+  group('matching rules', () {
+    test('no raw prefix matching', () {
+      expect(RagService.formsOf('chapati', english: true, kiswahili: true), isNot(contains('cha')));
+      expect(RagService.formsOf('football', english: true, kiswahili: true), isNot(contains('foot')));
+    });
+    test('English stems', () {
+      expect(RagService.enStem('arrested'), 'arrest');
+      expect(RagService.enStem('following'), 'follow');
+      expect(RagService.enStem('stopped'), 'stop');
+      expect(RagService.enStem('sharing'), RagService.enStem('share'));
+    });
+    test('Kiswahili stems', () {
+      expect(RagService.swStems('ninafuatwa'), contains('fuat'));
+      expect(RagService.swStems('unafuatwa'), contains('fuat'));
+      expect(RagService.swStems('kukamatwa'), contains('kamatwa'));
+      expect(RagService.swStems('ukikamatwa'), contains('kamatwa'));
+      // "ku-" is never followed by a tense marker: "kutapika" (vomit) must not reduce to "pika" (cook).
+      expect(RagService.swStems('kutapika'), isNot(contains('pika')));
+      expect(RagService.swStems('niandae'), contains('anda'));
+      expect(RagService.swStems('andaa'), contains('anda'));
+    });
+    test('generic words are stopwords, including prefixed Kiswahili verbs', () {
+      expect(RagService.tokenise('Please help me, I need to write something'), isEmpty);
+      expect(RagService.tokenise('Ninahitaji wakili'), ['wakili']);
+    });
+    test('explain() shows which words matched', () {
+      final m = rag.explain('There is tear gas. What do I do right now?').first;
+      expect(m.card.id, 'teargas-001');
+      expect(m.matchedTerms, containsAll(['tear', 'gas']));
+    });
+    test('a single matching word among several unrelated ones does not pass', () {
+      // "mpira" appears in the rubber-bullet card, but the rest of the query is about football poems.
+      expect(rag.retrieveTopK('Niandikie shairi kuhusu mpira', lang: 'sw'), isEmpty);
+    });
+  });
+
   group('out-of-corpus queries are refused in both language modes', () {
     for (final q in outOfCorpusQueries) {
       for (final lang in ['en', 'sw']) {
