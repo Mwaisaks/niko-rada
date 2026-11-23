@@ -135,7 +135,8 @@ HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native r
 5. Cloud-model pricing/quota on the free plan (pricing and quota pages not read). Default model `gemini-3.5-flash-lite`.
 6. Emulator support for on-device (docs silent; assume none).
 7. Model names were cross-checked against two docs pages only; the models page was partly truncated when read.
-8. **Out-of-corpus gate is too permissive** (found 23 Nov, `chore/cleanup`). Retrieval passes any text with one token or
-   prefix match (threshold 0.05): "best chapati recipe" passes in Kiswahili mode ("cha"), "write me a poem about football"
-   passes in English ("write", "foot"). Affects Guide and extraction equally. Fix in Phase 3; skipped test
-   `KNOWN GAP` in `test/extractor_gate_test.dart` must pass then.
+8. ~~Out-of-corpus gate is too permissive~~ **Resolved 23 Nov** (`fix/retrieval-gate`): whole-word/stem matching,
+   ≥ 2 matching words or ≥ 50% coverage, domain keywords boost instead of filter. Fixture: 0 of 30 off-topic checks
+   accepted (was 15); in-corpus top-4 36/36 (was 30/36), Sheng panic 6/6. Residual: an off-topic text that happens to
+   share two corpus words (e.g. "share photos") would still pass; synonyms are a short hand-written list.
+   The notebook still holds the old retrieval port.

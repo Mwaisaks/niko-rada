@@ -68,14 +68,13 @@ void main() {
     expect(extractor.isInCorpus('best chapati recipe'), isFalse);
   });
 
-  // Known weakness of the existing retrieval (shared with Guide): any single token or prefix match passes the
-  // 0.05 threshold. "chapati" prefix-matches the Kiswahili word "cha"; "football" matches "foot"; "write" matches.
-  // Tighten in Phase 3 (safety layer). Kept here so the gap is visible, not hidden.
-  test('KNOWN GAP: off-topic text that shares a prefix with card words is not refused', () async {
+  // Formerly a known gap (open risk #8): single token / raw prefix matches let off-topic text through
+  // ("chapati" ~ "cha", "football" ~ "foot", "write"). Fixed on fix/retrieval-gate.
+  test('off-topic text that shares a prefix with card words is refused', () async {
     await expectLater(extractor.extract('best chapati recipe', lang: 'sw'), throwsA(isA<OutOfCorpusException>()));
     await expectLater(extractor.extract('Write me a poem about football', lang: 'en'),
         throwsA(isA<OutOfCorpusException>()));
-  }, skip: 'Retrieval gate is too permissive; fix in Phase 3 safety work');
+  });
 
   test('refusal message is bilingual and points to human help', () {
     expect(OutOfCorpusException.userMessage, contains('lawyer'));
