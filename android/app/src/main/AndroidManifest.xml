@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Network: only for one-time model download -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Network state: lets the hybrid spike report online/offline next to each route -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Foreground service: flutter_gemma uses this for large (>500 MB) downloads -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />

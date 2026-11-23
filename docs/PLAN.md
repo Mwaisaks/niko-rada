@@ -27,10 +27,11 @@ Hardware facts and risks:
 ## Phase 0 — Mon 23 Nov: setup, audit, feasibility
 - [x] Repo hygiene: Apache-2.0 `LICENSE`, `.gitignore` covers Firebase config/secrets, secrets scan of tree + history.
 - [x] Audit the repo and fill the AUDIT section in `docs/NIKO_RADA_CONTEXT.md`; run existing tests.
-- [ ] Research the current Firebase AI Logic hybrid docs for Android (APIs, modes, device list, route indicator, Flutter support).
-- [ ] **Spike** on branch `spike/hybrid-inference`: Kotlin wrapper over the Firebase hybrid SDK + MethodChannel + debug screen
+- [x] Research the current Firebase AI Logic hybrid docs for Android (APIs, modes, device list, route indicator, Flutter support).
+- [x] **Spike** on branch `spike/hybrid-inference`: Kotlin wrapper over the Firebase hybrid SDK + MethodChannel + debug screen
       showing response and route. Builds cleanly without committed secrets.
-- [ ] `docs/SPIKE_CHECKLIST.md`: Firebase console steps + how to run on the 4 GB phone and the borrowed Nano phone.
+      (Done 23 Nov: debug APK builds with no `google-services.json`; findings in `docs/RESEARCH_HYBRID_ANDROID.md`.)
+- [x] `docs/SPIKE_CHECKLIST.md`: Firebase console steps + how to run on the 4 GB phone and the borrowed Nano phone.
 - [ ] (Owner) Create Firebase project, enable Firebase AI Logic (Gemini Developer API), App Check debug token.
 - [ ] (Owner) Run the spike: cloud path on the 4 GB phone; on-device path on the Nano phone; airplane-mode test.
 - [ ] Record platform decision + hardware plan in the Decision log (only after owner confirms).
