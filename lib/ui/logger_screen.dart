@@ -52,12 +52,14 @@ class _LoggerScreenState extends State<LoggerScreen> {
     if (text.isEmpty) return;
     setState(() { _isExtracting = true; _error = null; _lastReport = null; });
     try {
-      final report = await _extractor.extract(text);
+      final report = await _extractor.extract(text, lang: context.read<AppState>().language);
       if (mounted) {
         setState(() { _lastReport = report; _isExtracting = false; });
         _controller.clear();
         await _loadReports();
       }
+    } on OutOfCorpusException {
+      if (mounted) setState(() { _isExtracting = false; _error = OutOfCorpusException.userMessage; });
     } catch (e) {
       if (mounted) setState(() { _isExtracting = false; _error = e.toString(); });
     }

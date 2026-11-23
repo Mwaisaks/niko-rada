@@ -117,15 +117,25 @@ largest; measure them in Phase 1.
 - `assets/corpus/cards.jsonl`: 41 cards, all `verified: true`, all with `content_sw`. Domains: first_aid 11,
   evasion_safety 7, blackout_comms 7, documentation 6, rights 6, contacts 4. Schema in `lib/models/knowledge_card.dart`.
   Provenance: `assets/corpus/SOURCES.md`. Bundled as a Flutter asset (`pubspec.yaml`).
-- `RagService.loadCards()` (`rag.dart:21-31`) loads once and drops unverified cards. Sheng uses the Kiswahili fields.
-- `retrieveTopK` (`rag.dart:39-77`): tokenise (drop ≤2-char tokens and EN/SW stop words) → deterministic keyword domain
-  detection `_detectDomain` (`rag.dart:129-164`) filters cards → score = fraction of query tokens matching a card token
-  exactly or by prefix → keep score ≥ 0.05, top k = 4; if the domain filter yields nothing, re-score the full corpus.
+- `RagService.loadCards()` loads once, drops unverified cards, and precomputes each card's word forms from **both**
+  its English and Kiswahili text (people code-switch). Display/prompt text still uses the UI language.
+- Matching (rewritten 23 Nov on `fix/retrieval-gate`, see `lib/services/rag.dart` class comment): tokenise, drop
+  EN/SW stopwords and generic chat words and words under 3 letters; each word → itself + English stem + Kiswahili stem
+  (≥ 4 letters) + optional synonym tag (police/officer/polisi, child/son/mtoto). **No raw prefix matching.**
+- **Gate:** a card counts only if ≥ 2 distinct query words match it, or matched words cover ≥ 50% of the query's words.
+  No card → refusal before any model call. Shared by Guide and extraction (`RagService.passesGate`).
+- Ranking: sum of IDF weights of matched words + a small boost for domain keywords (whole words). Domain keywords no
+  longer filter cards out (the old filter sent "arrested"/"record" to documentation and "call" to blackout_comms).
+- `RagService.explain(query)` returns each passing card with the words that matched.
+- Fixture results (`test/fixtures/retrieval_fixture.dart`, k = 4): EN+SW in-corpus top-1/2/4 went from 26/27/30 to
+  33/36/36 of 36; Sheng panic queries from 3/5/6 to 6/6/6; off-topic wrongly accepted from 15 to 0 of 30.
+- `notebook/notebook.ipynb` still contains the **old** retrieval port; it is no longer line-for-line with `rag.dart`.
 
 ### Refusal gate
 `lib/services/gemma_service.dart:61-69`, inside `GemmaService.answer()`: if `retrieveTopK` returns no cards, yield a fixed
-bilingual refusal string and return before any model call. The Guide prompt also carries a model-side refusal rule
-(`prompts.dart:21`). `extractIncident` has **no** gate (any text goes to the model). The notebook loop stops at Retrieve
+bilingual refusal string and return before any model call. Since 23 Nov the same gate guards incident extraction
+(`ExtractorService.extract` → `RagService.passesGate`). The Guide prompt also carries a model-side refusal rule
+(`prompts.dart:21`). The notebook loop stops at Retrieve
 with the same refusal.
 
 ### Data stored locally

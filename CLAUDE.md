@@ -40,6 +40,14 @@ rename only; do not use it).
   loop (Triage, Guide, Branch/report, Plan) a single-turn call with compact prompts. Retrieve is pure Dart, no model.
 - Keep the existing safety design: grounded-only answers with citations, out-of-corpus input refused before it reaches any
   model, no fine-tuning, vetted contact numbers from the corpus/constants only (never from model output).
+- The agent loop (Triage, Retrieve, Guide, Branch, Plan) exists today only in `notebook/notebook.ipynb`; the app has
+  Retrieve + Guide and manual extraction. Phase 1 order: Triage → Retrieve/Guide on `InferenceService` → Branch (automatic
+  report for active incidents, behind the same out-of-corpus gate) → Plan only if time remains after Phase 2.
+- Every model call is single-turn. No reused chat sessions.
+- Prompt budget for Nano: each request under ~4,000 tokens, replies under ~256 tokens; retrieve 2 cards by default.
+- Language design: Nano does short English-friendly work (triage, card selection, report structuring); show the verified
+  Kiswahili corpus text directly instead of generating it on-device; free-form Kiswahili/Sheng generation goes to the
+  cloud, with consent.
 - Cloud use of crisis content requires explicit, revocable user consent in the UI. Default is on-device; offline = on-device only.
   Minimise what is sent to the cloud (no names/locations unless the user chooses).
 - The UI must show which route served each response (on-device vs cloud) and, on fallback, why.
@@ -49,8 +57,9 @@ rename only; do not use it).
 - Honest limitation to keep in the pitch: a low-end phone without Nano during a total network shutdown gets neither path.
 
 ## Working agreements
-- Start with **Phase 0 in `docs/PLAN.md`**. Do not begin the AI swap until the audit is in `docs/NIKO_RADA_CONTEXT.md`
-  and the spike results and platform decision are recorded in `docs/PLAN.md`.
+- Platform decision (23 Nov): Android, Flutter + Kotlin bridge. Kill rule: no Nano phone showing the on-device model as
+  available by Wed 25 Nov 12:00 EAT → switch to Web (Chrome Desktop). See the Decision log in `docs/PLAN.md`.
+- Do not start Phase 1 (Dart port, removing `flutter_gemma`) until the owner confirms the spike ran on a real phone.
 - Small, focused commits with plain descriptive messages. Tick checkboxes in `docs/PLAN.md` as you go.
 - When a decision is mine (platform, cutting scope), give 2–3 options with a recommendation and wait.
 - If docs contradict the repo, trust the repo and fix the docs.

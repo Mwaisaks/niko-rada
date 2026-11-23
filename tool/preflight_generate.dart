@@ -12,8 +12,8 @@ import 'package:niko_rada/services/gemma_service.dart';
 
 /// Path to the model file, already downloaded out-of-band (curl) to avoid
 /// re-downloading through the app's own (still-unverified) F0 download flow.
-const _kLocalModelPath =
-    '/tmp/claude-1000/-home-mwaisaka-mercie-Desktop-projects-niko-rada/67b6195c-d176-4e22-930c-f6d870b13a0b/scratchpad/model/gemma-4-E2B-it.litertlm';
+/// Pass it at run time: --dart-define=MODEL_PATH=/path/to/gemma-4-E2B-it.litertlm
+const _kLocalModelPath = String.fromEnvironment('MODEL_PATH');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +23,11 @@ Future<void> main() async {
   await gemma.initialize();
 
   if (!gemma.isModelReady) {
+    if (_kLocalModelPath.isEmpty) {
+      stdout.writeln('PREFLIGHT: no model installed and MODEL_PATH not set '
+          '(use --dart-define=MODEL_PATH=/path/to/model.litertlm).');
+      exit(2);
+    }
     stdout.writeln('PREFLIGHT: installing model from local file: $_kLocalModelPath');
     await FlutterGemma.installModel(
       modelType: ModelType.gemma4,

@@ -28,21 +28,41 @@ Hardware facts and risks:
 - [x] Repo hygiene: Apache-2.0 `LICENSE`, `.gitignore` covers Firebase config/secrets, secrets scan of tree + history.
 - [x] Audit the repo and fill the AUDIT section in `docs/NIKO_RADA_CONTEXT.md`; run existing tests.
 - [x] Research the current Firebase AI Logic hybrid docs for Android (APIs, modes, device list, route indicator, Flutter support).
+      → `docs/RESEARCH_HYBRID_ANDROID.md` (on branch `spike/hybrid-inference`).
 - [x] **Spike** on branch `spike/hybrid-inference`: Kotlin wrapper over the Firebase hybrid SDK + MethodChannel + debug screen
       showing response and route. Builds cleanly without committed secrets.
-      (Done 23 Nov: debug APK builds with no `google-services.json`; findings in `docs/RESEARCH_HYBRID_ANDROID.md`.)
-- [x] `docs/SPIKE_CHECKLIST.md`: Firebase console steps + how to run on the 4 GB phone and the borrowed Nano phone.
+      (Done 23 Nov: debug APK builds with no `google-services.json`. Not yet run on a phone.)
+- [x] `docs/SPIKE_CHECKLIST.md` (on the spike branch): Firebase console steps + how to run on the 4 GB phone and the borrowed Nano phone.
 - [ ] (Owner) Create Firebase project, enable Firebase AI Logic (Gemini Developer API), App Check debug token.
 - [ ] (Owner) Run the spike: cloud path on the 4 GB phone; on-device path on the Nano phone; airplane-mode test.
-- [ ] Record platform decision + hardware plan in the Decision log (only after owner confirms).
+- [x] Record platform decision + hardware plan in the Decision log (owner confirmed 23 Nov).
 - Acceptance: spike works on a real phone (both routes seen); decision written down.
 
 ## Phase 1 — Tue 24 Nov: swap the AI layer (starts only after owner confirms the spike works on a real phone)
-- [ ] Dart `InferenceService` over the Kotlin platform channel; migrate every existing model call to it.
-- [ ] Port the five-step agent loop (Triage, Retrieve, Guide, Branch, Plan) from the notebook into Dart; Triage and Plan
-      prompts are new in the app.
-- [ ] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
-- Acceptance: no direct model calls outside `InferenceService`; agent loop demoable on-device and in cloud.
+Audit finding that shapes this phase: the five-step loop exists only in the notebook (cell 22). The app has Retrieve +
+Guide and a manually triggered extraction. Triage and Plan are new Dart work.
+
+Scope, in priority order:
+1. [ ] Dart `InferenceService` over the Kotlin platform channel (the only caller of a model). **Every model call is
+       single-turn**: remove the reused `InferenceChat` session (`gemma_service.dart:103-113`).
+       Port **Triage** to Dart (prompt from notebook `triage_prompt`), then run **Retrieve** and **Guide** on the new
+       `InferenceService`.
+2. [ ] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
+       behind the same out-of-corpus gate as Guide.
+3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
+4. [ ] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
+
+Prompt budget (Nano limits):
+- Keep each on-device request under ~4,000 tokens; aim for replies under 256 tokens (`maxOutputTokens`).
+- Retrieve **2 cards** instead of 4, unless testing on the Nano phone shows 4 fits the budget.
+- Measure each prompt's size (Triage, Guide, Branch, Plan) on the real phone and note it here.
+
+Language design (to test on the borrowed phone):
+- Use Nano for short, English-friendly work: triage, card selection, report structuring.
+- Show the **verified Kiswahili text from the corpus cards directly** instead of generating Kiswahili on-device.
+- Free-form Kiswahili or Sheng generation goes to the cloud, with consent.
+- Acceptance: no direct model calls outside `InferenceService`; Triage → Retrieve → Guide (+ Branch for active incidents)
+  demoable on-device and in cloud.
 
 ## Phase 2 — Wed 25 Nov: hybrid behaviour and UX
 - [ ] Routing rules (default on-device; cloud only with consent; offline → on-device only; no Nano + no consent → limited mode)
@@ -59,6 +79,7 @@ Hardware facts and risks:
 
 ## Phase 4 — Fri 27 Nov: QA and freeze
 - [ ] Test matrix: online/offline × Nano present/absent × consent given/denied × cloud error × EN/SW/Sheng.
+      Include a row for **on-device Kiswahili/Sheng output quality** (Nano phone, airplane mode).
       Log results in `docs/TEST_MATRIX.md`.
 - [ ] Release APK built and installed from a clean state on both phones.
 - [ ] **Feature freeze at end of day.**
@@ -82,3 +103,40 @@ HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native r
 
 ## Decision log
 (Claude Code: record decisions here with date and reason, only after the owner confirms.)
+
+### 2026-11-23 — Platform: Android (Flutter + Kotlin bridge). Confirmed by owner.
+- Keep the Flutter app. A Kotlin wrapper around Firebase AI Logic hybrid inference (`firebase-ai` 18.2.0 +
+  `firebase-ai-ondevice` 16.0.0-beta08) is exposed over a MethodChannel and called only from a Dart `InferenceService`.
+- Why: `firebase_ai` (Flutter) has no hybrid/on-device API; the native Android SDK does, and the spike compiles against
+  it. Best Android App is the floor prize, and a real Flutter app with visible on-device/cloud routing fits it.
+- Hardware plan: owner's 4 GB phone (not on the Prompt API device list) demonstrates the cloud path; a borrowed
+  Nano-capable physical phone demonstrates on-device. Emulators are not used for on-device.
+- **Kill rule:** if no Nano-capable physical phone shows the on-device model as `AVAILABLE` by **Wed 25 Nov, 12:00 EAT**,
+  switch to **Web (Chrome Desktop)**.
+
+### 2026-11-23 — Phase 1 scope and language design. Confirmed by owner.
+- Priority: Triage → Retrieve/Guide on `InferenceService` → Branch (auto extraction, gated) → Plan only if time remains.
+- Single-turn calls only; 2 retrieved cards by default; on-device for short English-friendly work, verified corpus
+  Kiswahili shown directly, free-form Kiswahili/Sheng generation in the cloud with consent.
+
+### 2026-11-23 — Leave git history alone (chat log stays in the first commit). Confirmed by owner.
+- `Building Niko Rada Offline App.md` (exported IDE chat log) was removed from the tree but remains in commit `cf5e47a`.
+- Why: it holds no secrets (only a local username and folder paths). Rewriting history would change every commit hash,
+  including the pre-window baseline `c745a39` used for the "what we built during the window" summary, and would need
+  force-pushes of every branch plus a GitHub cache purge.
+
+## Open risks (from Phase 0 research; unconfirmed)
+1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design
+   above; test on the Nano phone (Phase 4 matrix row).
+2. Behaviour of `PREFER_ON_DEVICE` / `ONLY_ON_DEVICE` when offline on a phone without Nano (expected: error; that is the
+   "neither path" limitation). Test: `SPIKE_CHECKLIST.md` C.5.
+3. Whether `systemInstruction` is honoured on-device (not documented). Keep all rules inside the prompt text.
+4. Whether App Check requires registering Play Integrity before debug tokens can be added in the console.
+5. Cloud-model pricing/quota on the free plan (pricing and quota pages not read). Default model `gemini-3.5-flash-lite`.
+6. Emulator support for on-device (docs silent; assume none).
+7. Model names were cross-checked against two docs pages only; the models page was partly truncated when read.
+8. ~~Out-of-corpus gate is too permissive~~ **Resolved 23 Nov** (`fix/retrieval-gate`): whole-word/stem matching,
+   ≥ 2 matching words or ≥ 50% coverage, domain keywords boost instead of filter. Fixture: 0 of 30 off-topic checks
+   accepted (was 15); in-corpus top-4 36/36 (was 30/36), Sheng panic 6/6. Residual: an off-topic text that happens to
+   share two corpus words (e.g. "share photos") would still pass; synonyms are a short hand-written list.
+   The notebook still holds the old retrieval port.

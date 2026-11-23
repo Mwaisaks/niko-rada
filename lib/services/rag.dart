@@ -1,18 +1,39 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import '../models/knowledge_card.dart';
 
-/// Simple keyword + TF-IDF-style retrieval over the bundled corpus.
-/// No external native surface — pure Dart.
+/// Deterministic keyword retrieval over the bundled corpus, and the out-of-corpus gate. Pure Dart, no model.
 ///
-/// Upgrade path: swap to flutter_gemma built-in embeddings + vector store
-/// once the corpus grows beyond ~100 cards.
+/// How a query is matched (designed to be explainable):
+/// 1. Tokenise: lowercase, split on non-letters, drop stopwords (English + Kiswahili + generic chat words) and words
+///    shorter than 3 letters (except a few short domain terms such as "fm", "sms", "vpn").
+/// 2. Each word becomes a small set of forms: the word itself, an English stem ("arrested" → "arrest") and a
+///    Kiswahili stem ("ninafuatwa" → "fuatwa" → "fuat"). Stems shorter than 4 letters are discarded.
+///    There is NO raw prefix matching ("chapati" does not match "cha"; "football" does not match "foot").
+/// 3. A query word matches a card if any of its forms appears among the card's forms. Cards are matched against
+///    both their English and Kiswahili text, because people code-switch (Sheng, mixed EN/SW).
+/// 4. **Gate:** a card counts only if at least [minDistinctTerms] different query words match it, or, for short
+///    queries, if the matching words cover at least [minCoverage] of the query's words.
+///    If no card counts, retrieval returns nothing and callers refuse before any model call.
+/// 5. Ranking among cards that pass: sum of IDF weights of the matched words (rarer words count more), plus a small
+///    boost when the query mentions a domain keyword. Domain keywords only boost; they never filter cards out.
 class RagService {
   RagService._();
   static final RagService _instance = RagService._();
   factory RagService() => _instance;
 
+  /// A card must match at least this many distinct query words...
+  static const minDistinctTerms = 2;
+
+  /// ...or, with fewer matches, the matched words must cover at least this share of the query's words.
+  static const minCoverage = 0.5;
+
+  static const _domainBoost = 0.5;
+
   List<KnowledgeCard> _cards = [];
+  List<Set<String>> _cardForms = [];
+  Map<String, double> _idfCache = {};
   bool _loaded = false;
 
   // ---------------------------------------------------------------------------
@@ -27,50 +48,52 @@ class RagService {
         .map((line) => KnowledgeCard.fromJson(jsonDecode(line) as Map<String, dynamic>))
         .where((card) => card.verified) // exclude unverified contacts
         .toList();
+    _cardForms = [
+      for (final c in _cards)
+        {
+          for (final t in tokenise('${c.titleEn} ${c.contentEn}')) ...formsOf(t, english: true, kiswahili: false),
+          for (final t in tokenise('${c.titleSw} ${c.contentSw}')) ...formsOf(t, english: false, kiswahili: true),
+        }
+    ];
+    _idfCache = {};
     _loaded = true;
   }
 
   // ---------------------------------------------------------------------------
-  // Retrieval
+  // Retrieval + gate
   // ---------------------------------------------------------------------------
 
-  /// Returns the top-k most relevant cards for [query], in [lang].
-  /// Optionally filters to a specific [domain].
-  List<KnowledgeCard> retrieveTopK(
-    String query, {
-    String lang = 'en',
-    String? domain,
-    int k = 4,
-    double threshold = 0.05,
-  }) {
-    final queryTokens = _tokenise(query.toLowerCase());
-    if (queryTokens.isEmpty) return [];
+  /// Returns the top-k cards for [query] that pass the gate. Empty means "out of corpus": refuse.
+  /// [lang] is kept for API compatibility; matching uses both card languages, display uses [lang].
+  List<KnowledgeCard> retrieveTopK(String query, {String lang = 'en', int k = 4}) =>
+      explain(query).take(k).map((m) => m.card).toList();
 
-    // Deterministic domain override — check keywords first
-    final detectedDomain = domain ?? _detectDomain(query);
+  /// The single out-of-corpus gate shared by Guide (GemmaService.answer) and extraction (ExtractorService).
+  bool passesGate(String query, {String lang = 'en'}) => retrieveTopK(query, lang: lang, k: 1).isNotEmpty;
 
-    // Score each card
-    final scored = <_ScoredCard>[];
-    for (final card in _cards) {
-      if (detectedDomain != null && card.domain != detectedDomain) continue;
-      final score = _score(queryTokens, card, lang);
-      if (score >= threshold) {
-        scored.add(_ScoredCard(card, score));
+  /// All cards that pass the gate, best first, with the words that matched (for debugging and tests).
+  List<RetrievalMatch> explain(String query) {
+    final terms = tokenise(query).toSet().toList();
+    if (terms.isEmpty) return const [];
+    final termForms = {for (final t in terms) t: formsOf(t, english: true, kiswahili: true)};
+    final domains = _detectDomains(query);
+
+    final matches = <RetrievalMatch>[];
+    for (var i = 0; i < _cards.length; i++) {
+      final forms = _cardForms[i];
+      final matched = [for (final t in terms) if (termForms[t]!.any(forms.contains)) t];
+      if (matched.isEmpty) continue;
+      final coverage = matched.length / terms.length;
+      if (matched.length < minDistinctTerms && coverage < minCoverage) continue; // the gate
+      var score = 0.0;
+      for (final t in matched) {
+        score += _idf(t, termForms[t]!);
       }
+      score += _domainBoost * (domains[_cards[i].domain] ?? 0);
+      matches.add(RetrievalMatch(_cards[i], matched, score));
     }
-
-    // If domain filter found nothing, fall back to full corpus
-    if (scored.isEmpty && detectedDomain != null) {
-      for (final card in _cards) {
-        final score = _score(queryTokens, card, lang);
-        if (score >= threshold) {
-          scored.add(_ScoredCard(card, score));
-        }
-      }
-    }
-
-    scored.sort((a, b) => b.score.compareTo(a.score));
-    return scored.take(k).map((s) => s.card).toList();
+    matches.sort((a, b) => b.score.compareTo(a.score)); // stable: ties keep corpus order
+    return matches;
   }
 
   /// Formats the retrieved cards into a prompt-injectable string.
@@ -89,97 +112,165 @@ class RagService {
   int get cardCount => _cards.length;
 
   // ---------------------------------------------------------------------------
-  // Private helpers
+  // Tokenising and stemming (public static for tests)
   // ---------------------------------------------------------------------------
 
-  double _score(List<String> queryTokens, KnowledgeCard card, String lang) {
-    final cardText = '${card.title(lang)} ${card.content(lang)} ${card.domain}'
-        .toLowerCase();
-    final cardTokens = _tokenise(cardText);
-    if (cardTokens.isEmpty) return 0;
+  static List<String> tokenise(String text) => text
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+      .split(RegExp(r'\s+'))
+      .where((t) => (t.length >= 3 || _shortTerms.contains(t)) && !_isStop(t))
+      .toList();
 
-    int matches = 0;
-    for (final qt in queryTokens) {
-      // Exact token match
-      if (cardTokens.contains(qt)) {
-        matches++;
-        continue;
+  static bool _isStop(String t) {
+    if (_stopWords.contains(t)) return true;
+    // Kiswahili verbs carry subject/tense prefixes: "ninahitaji" is the generic "I need".
+    final sw = _swStripPrefixes(t);
+    return sw != t && _stopWords.contains(sw);
+  }
+
+  /// The word plus its stems (stems must be at least 4 letters), plus a synonym-group tag if it has one.
+  static Set<String> formsOf(String t, {required bool english, required bool kiswahili}) {
+    final forms = <String>{t};
+    final group = _synonyms[t];
+    if (group != null) forms.add(group);
+    if (english) {
+      final s = enStem(t);
+      if (s.length >= 4) forms.add(s);
+    }
+    if (kiswahili) {
+      for (final s in swStems(t)) {
+        if (s.length >= 4) forms.add(s);
       }
-      // Partial/stem match (simple prefix)
-      for (final ct in cardTokens) {
-        if (ct.startsWith(qt) || qt.startsWith(ct)) {
-          matches++;
-          break;
-        }
-      }
     }
-    // Normalise by query length
-    return matches / queryTokens.length;
+    return forms;
   }
 
-  List<String> _tokenise(String text) {
-    return text
-        .replaceAll(RegExp(r'[^\w\s]'), ' ')
-        .split(RegExp(r'\s+'))
-        .where((t) => t.length > 2 && !_stopWords.contains(t))
-        .toList();
+  /// Light English suffix stemmer: "arrested" → "arrest", "followed"/"following" → "follow", "share"/"sharing" →
+  /// "shar", "stopped" → "stop", "photos" → "photo".
+  static String enStem(String w) {
+    if (w.length <= 3) return w;
+    var s = w;
+    if (s.endsWith('ies') && s.length > 4) {
+      s = '${s.substring(0, s.length - 3)}y';
+    } else if (s.endsWith('sses')) {
+      s = s.substring(0, s.length - 2);
+    } else if (s.endsWith('ing') && s.length - 3 >= 3) {
+      s = s.substring(0, s.length - 3);
+    } else if (s.endsWith('ed') && s.length - 2 >= 3) {
+      s = s.substring(0, s.length - 2);
+    } else if (s.endsWith('es') && RegExp(r'(s|x|z|ch|sh)es$').hasMatch(s)) {
+      s = s.substring(0, s.length - 2);
+    } else if (s.endsWith('s') && !s.endsWith('ss') && !s.endsWith('us') && !s.endsWith('is')) {
+      s = s.substring(0, s.length - 1);
+    }
+    if (s.endsWith('ly') && s.length > 5) s = s.substring(0, s.length - 2);
+    if (s.length > 3 && RegExp(r'([bcdfgkmnprt])\1$').hasMatch(s)) s = s.substring(0, s.length - 1);
+    if (s.length > 3 && s.endsWith('e')) s = s.substring(0, s.length - 1);
+    return s;
   }
 
-  /// Deterministic keyword → domain mapping (fallback if router model fails).
-  String? _detectDomain(String query) {
-    final q = query.toLowerCase();
+  // Subject + tense prefixes ("ni-na-", "u-me-", "a-ki-"). The infinitive "ku-" and habitual "hu-" are never
+  // followed by a tense marker, so they are stripped alone: "kutapika" → "tapika", not "pika" (which would
+  // wrongly match "kupika", to cook).
+  static final _swInfinitive = RegExp(r'^(ku|hu)');
+  static final _swPrefix = RegExp(r'^(ni|u|a|tu|m|wa|i|li|ki|vi|zi)?(na|li|ta|me|ki|ka|nge)?');
 
-    if (_matchesAny(q, ['tear gas', 'machozi', 'gas', 'eyes', 'macho', 'inhale',
-        'burn', 'rubber bullet', 'baton', 'struck', 'first aid', 'damu',
-        'bleeding', 'shock', 'burn', 'mshtuko', 'jeraha'])) {
-      return 'first_aid';
-    }
-    if (_matchesAny(q, ['follow', 'fuatwa', 'followed', 'checkpoint', 'kizuizi',
-        'escape', 'hide', 'crowd', 'crush', 'stampede', 'msongamano', 'run'])) {
-      return 'evasion_safety';
-    }
-    if (_matchesAny(q, ['network', 'mtandao', 'internet', 'offline', 'blackout',
-        'reach', 'fikia', 'contact', 'signal', 'briar', 'rendezvous', 'kukutana',
-        'wifi', 'message', 'call'])) {
-      return 'blackout_comms';
-    }
-    if (_matchesAny(q, ['witness', 'shuhudia', 'record', 'rekodi', 'abduction',
-        'utekaji', 'report', 'ripoti', 'document', 'disappeared', 'grabbed',
-        'kamatwa', 'arrested'])) {
-      return 'documentation';
-    }
-    if (_matchesAny(q, ['rights', 'haki', 'arrested', 'detained', 'lawyer',
-        'protest right', 'constitution', 'katiba', 'silent'])) {
-      return 'rights';
-    }
-    if (_matchesAny(q, ['phone', 'simu', 'prepare', 'andaa', 'encryption',
-        'pin', 'surveillance', 'monitored'])) {
-      return 'documentation';
-    }
-    if (_matchesAny(q, ['emergency', 'hospital', 'dharura', 'number', 'nambari',
-        'contact', 'call', 'hotline'])) {
-      return 'contacts';
-    }
-    return null; // no domain detected — search all
+  static String _swStripPrefixes(String w) {
+    final inf = _swInfinitive.firstMatch(w);
+    final m = inf ?? _swPrefix.firstMatch(w);
+    final stripped = m == null ? w : w.substring(m.end);
+    return stripped.length >= 3 ? stripped : w;
   }
 
-  bool _matchesAny(String text, List<String> keywords) =>
-      keywords.any((kw) => text.contains(kw));
+  /// Kiswahili stems: strip subject/tense prefixes, then the passive "-wa", then a final vowel.
+  /// "ninafuatwa"/"unafuatwa" → "fuatwa", "fuat"; "kukamatwa"/"ukikamatwa" → "kamatwa", "kamat".
+  /// The unprefixed word minus its final vowel is kept too, because a verb root can itself start with a letter that
+  /// looks like a prefix: "andaa" (prepare) → "anda", which "niandae" → "andae" → "anda" also reaches.
+  static List<String> swStems(String w) {
+    final out = <String>[];
+    if (RegExp(r'[aeiou]$').hasMatch(w) && w.length > 4) out.add(w.substring(0, w.length - 1));
+    var s = _swStripPrefixes(w);
+    if (s != w) out.add(s);
+    if (s.endsWith('wa') && s.length > 5) {
+      s = s.substring(0, s.length - 2);
+      out.add(s);
+    }
+    if (RegExp(r'[aeiou]$').hasMatch(s) && s.length > 4) out.add(s.substring(0, s.length - 1));
+    return out;
+  }
+
+  double _idf(String term, Set<String> forms) => _idfCache.putIfAbsent(term, () {
+        final df = _cardForms.where((cf) => forms.any(cf.contains)).length;
+        return math.log((_cards.length + 1) / (df + 1)) + 1;
+      });
+
+  /// Domain keywords (whole words / phrases). They only boost ranking; they never remove cards.
+  Map<String, int> _detectDomains(String query) {
+    final q = ' ${query.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')} ';
+    final hits = <String, int>{};
+    _domainKeywords.forEach((domain, keywords) {
+      final n = keywords.where((kw) => q.contains(' $kw ')).length;
+      if (n > 0) hits[domain] = n;
+    });
+    return hits;
+  }
+
+  static const Map<String, List<String>> _domainKeywords = {
+    'first_aid': ['tear gas', 'machozi', 'eyes', 'macho', 'burn', 'burns', 'rubber bullet', 'baton', 'bleeding',
+        'damu', 'shock', 'mshtuko', 'jeraha', 'injury', 'injured', 'first aid', 'fainted', 'breathing'],
+    'evasion_safety': ['followed', 'following me', 'ninafuatwa', 'checkpoint', 'kizuizi', 'escape', 'hide',
+        'crowd', 'stampede', 'msongamano', 'curfew'],
+    'blackout_comms': ['network', 'mtandao', 'internet', 'offline', 'blackout', 'signal', 'briar', 'wifi',
+        'vpn', 'radio', 'redio', 'sms'],
+    'documentation': ['witness', 'witnessed', 'shuhudia', 'nimeona', 'forced', 'forcefully', 'grabbed',
+        'record what', 'abduction', 'utekaji', 'document',
+        'evidence', 'ushahidi', 'metadata', 'photos', 'prepare my phone', 'simu yangu'],
+    'rights': ['rights', 'haki', 'arrested', 'detained', 'kukamatwa', 'constitution', 'katiba', 'legal', 'protest'],
+    'contacts': ['lawyer', 'wakili', 'emergency', 'dharura', 'number', 'numbers', 'nambari', 'hotline', 'call'],
+  };
+
+  /// Small, explicit synonym groups (EN/SW). A word in a group also matches the group tag, so "son" matches a card
+  /// that says "child", and "police" matches "officer". Kept deliberately short; "minor" is excluded because the
+  /// burns card uses it to mean "small".
+  static const Map<String, String> _synonyms = {
+    'police': '@police', 'polisi': '@police', 'officer': '@police', 'officers': '@police', 'cop': '@police',
+    'cops': '@police', 'askari': '@police',
+    'child': '@child', 'children': '@child', 'minors': '@child', 'son': '@child', 'daughter': '@child',
+    'kid': '@child', 'kids': '@child', 'boy': '@child', 'girl': '@child', 'teenager': '@child', 'teen': '@child',
+    'mtoto': '@child', 'watoto': '@child', 'binti': '@child',
+  };
+
+  /// Two-letter domain terms that would otherwise be dropped as "too short".
+  static const Set<String> _shortTerms = {'fm', 'oc', 'id'};
 
   static const Set<String> _stopWords = {
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'can', 'shall', 'to', 'of', 'in', 'on',
-    'at', 'by', 'for', 'with', 'about', 'from', 'that', 'this', 'it',
-    'its', 'my', 'your', 'our', 'their', 'if', 'and', 'or', 'but', 'not',
-    'no', 'so', 'up', 'out', 'what', 'how', 'when', 'where', 'who', 'which',
-    'na', 'ya', 'wa', 'kwa', 'ni', 'la', 'za', 'au', 'si', 'ikiwa', 'hii',
-    'hilo', 'hiyo', 'yake', 'wake', 'wao', 'mimi', 'wewe', 'sisi', 'nyinyi',
+    // English function words
+    'the', 'and', 'are', 'was', 'were', 'been', 'being', 'have', 'has', 'had', 'does', 'did', 'will', 'would',
+    'could', 'should', 'may', 'might', 'can', 'shall', 'for', 'with', 'about', 'from', 'that', 'this', 'its',
+    'your', 'our', 'their', 'not', 'out', 'what', 'how', 'when', 'where', 'who', 'which', 'why', 'there', 'here',
+    'them', 'they', 'him', 'her', 'his', 'she', 'you', 'yours', 'mine', 'into', 'onto', 'than', 'then', 'also',
+    'any', 'all', 'some', 'very', 'just', 'too', 'now', 'right', 'still', 'but', 'yet', 'over', 'under',
+    // English generic chat / request words
+    'please', 'help', 'tell', 'give', 'need', 'want', 'get', 'got', 'make', 'know', 'write', 'show', 'like',
+    'best', 'good', 'new', 'one', 'two', 'ten', 'today', 'yesterday', 'tomorrow', 'last', 'next', 'people',
+    'someone', 'something', 'thing', 'things', 'way', 'hello', 'thanks', 'thank', 'okay',
+    // Kiswahili function words
+    'kwa', 'hii', 'hilo', 'hiyo', 'yake', 'wake', 'wao', 'mimi', 'wewe', 'sisi', 'nyinyi', 'ikiwa', 'yangu',
+    'yako', 'yetu', 'yenu', 'zangu', 'zako', 'wangu', 'wako', 'nini', 'gani', 'zipi', 'kama', 'lakini', 'pia',
+    'sana', 'hapa', 'pale', 'huko', 'leo', 'jana', 'kesho', 'sasa', 'kuna', 'ili', 'hadi', 'kwenye', 'katika',
+    'kutoka', 'kuhusu', 'jinsi', 'nani', 'bila', 'baada', 'kabla', 'tena',
+    // Kiswahili generic verbs / greetings (matched after prefix stripping, e.g. "ninahitaji" → "hitaji")
+    'hitaji', 'taka', 'fanye', 'fanya', 'sema', 'pe', 'habari', 'jambo', 'mambo', 'asante', 'saidie', 'saidia',
   };
 }
 
-class _ScoredCard {
+/// One card that passed the gate, with the query words that matched it.
+class RetrievalMatch {
   final KnowledgeCard card;
+  final List<String> matchedTerms;
   final double score;
-  _ScoredCard(this.card, this.score);
+  const RetrievalMatch(this.card, this.matchedTerms, this.score);
+  @override
+  String toString() => '${card.id} ${score.toStringAsFixed(2)} $matchedTerms';
 }
