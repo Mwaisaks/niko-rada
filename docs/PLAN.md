@@ -47,6 +47,9 @@ Scope, in priority order:
        single-turn**: remove the reused `InferenceChat` session (`gemma_service.dart:103-113`).
        Port **Triage** to Dart (prompt from notebook `triage_prompt`), then run **Retrieve** and **Guide** on the new
        `InferenceService`.
+       Progress 25 Nov (`feat/inference-interface`, not merged): `lib/inference/inference_service.dart` interface + test
+       fake; Triage ported to `lib/agent/triage.dart` (gate first, one-line `type|severity|active` output, strict
+       parser, tests). Not yet wired to the Kotlin bridge.
 2. [ ] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
        behind the same out-of-corpus gate as Guide.
 3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
