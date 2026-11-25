@@ -47,7 +47,7 @@ class CloudConsentStore extends ChangeNotifier implements CloudConsent {
     notifyListeners();
   }
 
-  /// "v<version>|<ISO-8601 UTC>". Anything else (missing, malformed, older version) means not granted.
+  /// Stored as `v<version>|<ISO-8601 UTC>`. Anything else (missing, malformed, older version) means not granted.
   static DateTime? _parse(String? raw) {
     if (raw == null) return null;
     final parts = raw.split('|');
