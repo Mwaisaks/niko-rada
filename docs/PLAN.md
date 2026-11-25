@@ -138,6 +138,20 @@ HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native r
 - **Kill rule status:** the deadline (Wed 25 Nov 12:00 EAT) passed with no Nano-capable phone tested. On-device
   remains unproven. Decision on Android vs Web: **pending owner**.
 
+### 2026-11-25 — Limited mode, tap-to-call, Triage "arrest" type. Confirmed by owner.
+- Limited mode (`docs/LIMITED_MODE.md`): show **2 cards**; **always show the emergency contacts card**
+  (`contacts-001`); detect with a **pre-flight check plus the `NO_ROUTE` backstop**; **defer the incident form**.
+- Tap-to-call: add in Phase 2 if the dependency is small (a `tel:` dialer link).
+- Triage gets an **`arrest`** type (the Sheng police-arrest situation was labelled `abduction` because none existed).
+  Keep the strict one-line format.
+
+### 2026-11-25 — Android vs Web: decision due Thu 26 Nov 09:00 EAT. Rule confirmed by owner.
+Friends are testing the spike APK on their phones. For each report:
+- On-device status `AVAILABLE` **and** Generate/Triage steps show "answered by: ON DEVICE" → **Android confirmed**.
+- `UNAVAILABLE` after AICore updates and a download attempt → **that phone is unsupported** (not a verdict on Android).
+- No usable report by Thu 26 Nov 09:00 EAT → **decide together with the owner**.
+Nothing merges into `main` from `feat/phase1-core` until this is decided.
+
 ## Open risks (from Phase 0 research; unconfirmed)
 1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design
    above; test on the Nano phone (Phase 4 matrix row).
