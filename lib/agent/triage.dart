@@ -12,6 +12,7 @@ import '../inference/inference_service.dart';
 enum IncidentType {
   tearGas('tear_gas'),
   abduction('abduction'),
+  arrest('arrest'),
   checkpoint('checkpoint'),
   networkBlackout('network_blackout'),
   medical('medical'),
@@ -131,6 +132,7 @@ Reply with exactly one line in this format and nothing else:
 type|severity|active
 
 type: one of $types
+  (abduction = taken by unidentified people or into an unmarked vehicle; arrest = stopped, held or taken by identifiable police or officials)
 severity: one of low, medium, high, critical
 active: yes only if a specific event is happening now or was just witnessed (someone taken, an injury, a live confrontation); no for general questions or preparation
 

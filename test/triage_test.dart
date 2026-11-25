@@ -17,6 +17,8 @@ void main() {
     final cases = <String, TriageResult>{
       'tear_gas|high|yes': const TriageResult(IncidentType.tearGas, Severity.high, true),
       'abduction|critical|yes': const TriageResult(IncidentType.abduction, Severity.critical, true),
+      'arrest|high|yes': const TriageResult(IncidentType.arrest, Severity.high, true),
+      'arrest|medium|no': const TriageResult(IncidentType.arrest, Severity.medium, false),
       'protest_rights|low|no': const TriageResult(IncidentType.protestRights, Severity.low, false),
       'network_blackout|medium|no': const TriageResult(IncidentType.networkBlackout, Severity.medium, false),
       // tolerated: surrounding whitespace, upper case, spaces around pipes, one backtick pair, a code fence
@@ -40,6 +42,8 @@ void main() {
       'riot|high|yes', // unknown type
       'tear_gas|severe|yes', // unknown severity
       'tear_gas|high|maybe', // active not yes/no
+      'arrested|high|yes', // close to a type but not one
+      'arrest|high|yes|abduction', // two types
       'tear_gas|high|true', // JSON-style boolean
       '{"type": "tear_gas", "severity": "high", "is_active_incident": true}', // the notebook's old JSON format
       'Sure! Here is the classification: tear_gas|high|yes', // prose before
@@ -65,6 +69,15 @@ void main() {
       expect(s.result, const TriageResult(IncidentType.tearGas, Severity.high, true));
       expect(s.route, InferenceRoute.inCloud);
       expect(s.fallbackReason, contains('UNAVAILABLE'));
+    });
+
+    test('Sheng police arrest (labelled abduction on the A16 before this type existed) can be classified arrest',
+        () async {
+      final fake = FakeInferenceService(['arrest|high|yes']);
+      final out = await Triage(fake, passesGate: gate)
+          .run('Polisi wameshika msee kwa maandamano, ameshikwa bila sababu. Haki zake ni zipi?');
+      expect((out as TriageSuccess).result.type, IncidentType.arrest);
+      expect(fake.calls.single.prompt, contains('arrest = stopped, held or taken by identifiable police'));
     });
 
     test('Kiswahili situation works the same way', () async {
