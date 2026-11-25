@@ -140,3 +140,5 @@ HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native r
    accepted (was 15); in-corpus top-4 36/36 (was 30/36), Sheng panic 6/6. Residual: an off-topic text that happens to
    share two corpus words (e.g. "share photos") would still pass; synonyms are a short hand-written list.
    The notebook still holds the old retrieval port.
+   25 Nov follow-up (`fix/retrieval-2`): fixed three gaps found by the spike's Triage test ("teargas" as one word,
+   object markers like "ananifuata", abduction text ranking the bleeding card above the witnessing card).
