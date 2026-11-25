@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../agent/triage.dart';
 import '../services/rag.dart';
-import 'hybrid_inference_channel.dart';
+import '../inference/hybrid_inference_channel.dart';
+import '../inference/inference_service.dart';
 import 'spike_report.dart';
 
 /// Phase 0 spike screen: send one prompt through Firebase AI Logic hybrid inference and show which route served it.
@@ -140,7 +141,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
             route: switch (r.route) {
               InferenceRoute.onDevice => 'ON_DEVICE',
               InferenceRoute.inCloud => 'IN_CLOUD',
-              InferenceRoute.unknown => 'UNKNOWN',
+              null => 'UNKNOWN',
             },
             fallbackReason: r.fallbackReason,
             latencyMs: r.latencyMs,
@@ -193,7 +194,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
             final route = switch (r.route) {
               InferenceRoute.onDevice => 'ON_DEVICE',
               InferenceRoute.inCloud => 'IN_CLOUD',
-              InferenceRoute.unknown => 'UNKNOWN',
+              null => 'UNKNOWN',
             };
             _steps.add(SpikeStep(
               at: DateTime.now(),
@@ -417,14 +418,14 @@ class _Checklist extends StatelessWidget {
 
 class _RouteBadge extends StatelessWidget {
   const _RouteBadge({required this.route});
-  final InferenceRoute route;
+  final InferenceRoute? route;
 
   @override
   Widget build(BuildContext context) {
     final (label, icon, color) = switch (route) {
       InferenceRoute.onDevice => ('On your device', Icons.phone_android, Colors.green),
       InferenceRoute.inCloud => ('In the cloud', Icons.cloud_outlined, Colors.blue),
-      InferenceRoute.unknown => ('Route unknown', Icons.help_outline, Colors.grey),
+      null => ('Route unknown', Icons.help_outline, Colors.grey),
     };
     return Align(
       alignment: Alignment.centerLeft,

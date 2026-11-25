@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:niko_rada/spike/hybrid_debug_screen.dart';
-import 'package:niko_rada/spike/hybrid_inference_channel.dart';
+import 'package:niko_rada/inference/hybrid_inference_channel.dart';
 import 'package:niko_rada/spike/spike_report.dart';
 import 'package:niko_rada/agent/triage.dart';
 import 'package:niko_rada/services/rag.dart';

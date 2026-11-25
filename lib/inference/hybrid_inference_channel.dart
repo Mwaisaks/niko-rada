@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import '../inference/inference_service.dart' as inference;
+import 'inference_service.dart';
 
 /// Inference modes, mirroring com.google.firebase.ai.InferenceMode (Firebase AI Logic, Android).
 enum HybridMode { preferOnDevice, onlyOnDevice, preferInCloud, onlyInCloud }
@@ -13,13 +13,11 @@ extension HybridModeWire on HybridMode {
       };
 }
 
-/// Which path served a response, from GenerateContentResponse.inferenceSource.
-enum InferenceRoute { onDevice, inCloud, unknown }
-
-InferenceRoute _parseRoute(Object? v) => switch (v) {
+/// Route from GenerateContentResponse.inferenceSource; null if the native side could not tell.
+InferenceRoute? _parseRoute(Object? v) => switch (v) {
       'ON_DEVICE' => InferenceRoute.onDevice,
       'IN_CLOUD' => InferenceRoute.inCloud,
-      _ => InferenceRoute.unknown,
+      _ => null,
     };
 
 class HybridStatus {
@@ -31,7 +29,7 @@ class HybridStatus {
 
 class HybridResult {
   final String text;
-  final InferenceRoute route;
+  final InferenceRoute? route; // null = unknown
   final String mode;
   final String cloudModel;
   final String onDeviceStatusBefore;
@@ -133,7 +131,7 @@ class HybridInferenceException implements Exception {
       sdkCode == null || sdkCode == code ? message : '$message (SDK: $sdkCode${sdkMessage == null ? '' : ' — $sdkMessage'})';
 
   /// The app-level exception for InferenceService (Phase 1).
-  inference.InferenceException toInferenceException() => inference.InferenceException(code, detail);
+  InferenceException toInferenceException() => InferenceException(code, detail);
 
   @override
   String toString() => 'HybridInferenceException($code): $detail';
