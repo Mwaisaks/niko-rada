@@ -33,6 +33,9 @@ class RagService {
 
   List<KnowledgeCard> _cards = [];
   List<Set<String>> _cardForms = [];
+
+  /// Every single word that appears in any card (both languages), lowercase. Used to join query word pairs.
+  Set<String> _cardWords = {};
   Map<String, double> _idfCache = {};
   bool _loaded = false;
 
@@ -53,8 +56,14 @@ class RagService {
         {
           for (final t in tokenise('${c.titleEn} ${c.contentEn}')) ...formsOf(t, english: true, kiswahili: false),
           for (final t in tokenise('${c.titleSw} ${c.contentSw}')) ...formsOf(t, english: false, kiswahili: true),
+          // "tear gas" in a card also matches a query that writes "teargas" (likewise "wi-fi" → "wifi").
+          for (final t in compoundsOf('${c.titleEn} ${c.contentEn}')) ...formsOf(t, english: true, kiswahili: false),
+          for (final t in compoundsOf('${c.titleSw} ${c.contentSw}')) ...formsOf(t, english: false, kiswahili: true),
         }
     ];
+    _cardWords = {
+      for (final c in _cards) ..._words('${c.titleEn} ${c.contentEn} ${c.titleSw} ${c.contentSw}'),
+    };
     _idfCache = {};
     _loaded = true;
   }
@@ -73,7 +82,7 @@ class RagService {
 
   /// All cards that pass the gate, best first, with the words that matched (for debugging and tests).
   List<RetrievalMatch> explain(String query) {
-    final terms = tokenise(query).toSet().toList();
+    final terms = tokenise(_joinCorpusCompounds(query)).toSet().toList();
     if (terms.isEmpty) return const [];
     final termForms = {for (final t in terms) t: formsOf(t, english: true, kiswahili: true)};
     final domains = _detectDomains(query);
@@ -114,6 +123,34 @@ class RagService {
   // ---------------------------------------------------------------------------
   // Tokenising and stemming (public static for tests)
   // ---------------------------------------------------------------------------
+
+  static List<String> _words(String text) =>
+      text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]'), ' ').split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+
+  /// Adjacent word pairs written as one word ("tear gas" → "teargas"), skipping pairs with a stopword in them.
+  static List<String> compoundsOf(String text) {
+    final w = _words(text);
+    return [
+      for (var i = 0; i + 1 < w.length; i++)
+        if (!_stopWords.contains(w[i]) && !_stopWords.contains(w[i + 1]) && (w[i] + w[i + 1]).length >= 4)
+          w[i] + w[i + 1],
+    ];
+  }
+
+  /// Joins two adjacent query words when the corpus writes them as one word ("check point" → "checkpoint").
+  String _joinCorpusCompounds(String query) {
+    final w = _words(query);
+    final out = <String>[];
+    for (var i = 0; i < w.length; i++) {
+      if (i + 1 < w.length && _cardWords.contains(w[i] + w[i + 1]) && (w[i] + w[i + 1]).length >= 4) {
+        out.add(w[i] + w[i + 1]);
+        i++;
+      } else {
+        out.add(w[i]);
+      }
+    }
+    return out.join(' ');
+  }
 
   static List<String> tokenise(String text) => text
       .toLowerCase()
@@ -187,16 +224,33 @@ class RagService {
   /// "ninafuatwa"/"unafuatwa" → "fuatwa", "fuat"; "kukamatwa"/"ukikamatwa" → "kamatwa", "kamat".
   /// The unprefixed word minus its final vowel is kept too, because a verb root can itself start with a letter that
   /// looks like a prefix: "andaa" (prepare) → "anda", which "niandae" → "andae" → "anda" also reaches.
+  /// After a subject+tense prefix (or the infinitive "ku-"), a verb may carry an object marker:
+  /// "a-na-ni-fuata" (he is following me), "wa-me-m-kamata" (they arrested him), "ku-m-fuata" (to follow him).
+  /// Object markers are only stripped in that position, never from the start of a bare word.
+  static final _swObject = RegExp(r'^(ni|ku|mw|m|wa|tu|ki|vi|zi|li|ya|i|u)');
+
   static List<String> swStems(String w) {
     final out = <String>[];
     if (RegExp(r'[aeiou]$').hasMatch(w) && w.length > 4) out.add(w.substring(0, w.length - 1));
-    var s = _swStripPrefixes(w);
-    if (s != w) out.add(s);
-    if (s.endsWith('wa') && s.length > 5) {
-      s = s.substring(0, s.length - 2);
-      out.add(s);
+    final s = _swStripPrefixes(w);
+    if (s != w) {
+      out.addAll(_swSuffixVariants(s));
+      final hadTenseOrInfinitive = _swInfinitive.hasMatch(w) || (_swPrefix.firstMatch(w)?.group(2) != null);
+      final o = _swObject.firstMatch(s);
+      if (hadTenseOrInfinitive && o != null && s.length - o.end >= 4) out.addAll(_swSuffixVariants(s.substring(o.end)));
     }
-    if (RegExp(r'[aeiou]$').hasMatch(s) && s.length > 4) out.add(s.substring(0, s.length - 1));
+    return out;
+  }
+
+  /// The stem itself, minus the passive "-wa", and minus a final vowel: "fuatwa" → "fuatwa", "fuat".
+  static List<String> _swSuffixVariants(String s) {
+    final out = <String>[s];
+    var t = s;
+    if (t.endsWith('wa') && t.length > 5) {
+      t = t.substring(0, t.length - 2);
+      out.add(t);
+    }
+    if (RegExp(r'[aeiou]$').hasMatch(t) && t.length > 4) out.add(t.substring(0, t.length - 1));
     return out;
   }
 
@@ -239,6 +293,9 @@ class RagService {
     'child': '@child', 'children': '@child', 'minors': '@child', 'son': '@child', 'daughter': '@child',
     'kid': '@child', 'kids': '@child', 'boy': '@child', 'girl': '@child', 'teenager': '@child', 'teen': '@child',
     'mtoto': '@child', 'watoto': '@child', 'binti': '@child',
+    // Abduction accounts say "car"; the witnessing card says "vehicle" (EN) and "gari" (SW).
+    'car': '@vehicle', 'cars': '@vehicle', 'vehicle': '@vehicle', 'vehicles': '@vehicle', 'gari': '@vehicle',
+    'magari': '@vehicle',
   };
 
   /// Two-letter domain terms that would otherwise be dropped as "too short".
