@@ -12,7 +12,10 @@ class InCorpusQuery {
   final String domain;
   final Set<String> expected;
   final bool panic;
-  const InCorpusQuery(this.query, this.lang, this.domain, this.expected, {this.panic = false});
+
+  /// One of [expected] must appear within the first [topN] results (default 4, the app's k today).
+  final int topN;
+  const InCorpusQuery(this.query, this.lang, this.domain, this.expected, {this.panic = false, this.topN = 4});
 }
 
 const inCorpusQueries = <InCorpusQuery>[
@@ -64,6 +67,27 @@ const inCorpusQueries = <InCorpusQuery>[
   InCorpusQuery('How do I report a disappearance?', 'en', 'contacts',
       {'contacts-missingvoices-001', 'rights-003', 'doc-002'}),
   InCorpusQuery('Ninahitaji wakili', 'sw', 'contacts', {'contacts-lsk-001', 'contacts-001'}),
+];
+
+/// Added 25 Nov (fix/retrieval-2) from the spike's Triage test and follow-up checks.
+const retrieval2Queries = <InCorpusQuery>[
+  // 1. compound spellings: one word in the query, two words in the card, and the reverse
+  InCorpusQuery('teargas in my eyes', 'en', 'first_aid', {'teargas-001', 'teargas-002', 'pepperspray-001'}),
+  InCorpusQuery('Kuna teargas mingi hapa stage, macho inaniuma. Nifanye aje?', 'sw', 'first_aid',
+      {'teargas-001', 'teargas-002', 'pepperspray-001'}),
+  InCorpusQuery('pepperspray in my face', 'en', 'first_aid', {'pepperspray-001'}),
+  InCorpusQuery('hit by a rubberbullet', 'en', 'first_aid', {'firstaid-001', 'eyeinjury-001'}),
+  InCorpusQuery('There is a police check point ahead', 'en', 'evasion_safety', {'evasion-004'}),
+  InCorpusQuery('should I set up a simcard backup plan', 'en', 'blackout_comms', {'dualsim-001'}),
+  // 2. Kiswahili object markers (-ni- me, -m- him/her, -wa- them, -ku- you)
+  InCorpusQuery('Kuna mtu ananifuata tangu stage, nimeogopa. Nisaidie!', 'sw', 'evasion_safety', {'evasion-001'}),
+  InCorpusQuery('Wanamfuata rafiki yangu', 'sw', 'evasion_safety', {'evasion-001', 'buddy-001'}),
+  InCorpusQuery('Polisi wamemkamata kaka yangu', 'sw', 'rights', {'rights-003', 'rights-001'}),
+  InCorpusQuery('Polisi wamenikamata, haki zangu ni zipi?', 'sw', 'rights', {'rights-001'}),
+  InCorpusQuery('Wanawakamata waandamanaji', 'sw', 'rights', {'rights-001', 'rights-002', 'rights-003'}),
+  // 3. English abduction description: the witnessing card must be in the top 2 (Phase 1 retrieves 2 cards)
+  InCorpusQuery('Two men in plain clothes just pushed a young man into a white car near the bus stage. What do I do?',
+      'en', 'documentation', {'doc-001'}, topN: 2),
 ];
 
 /// Sheng panic queries (asserted at top 4). Sheng mixes Kiswahili and English, so retrieval matches both card fields.
