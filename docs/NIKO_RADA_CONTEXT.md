@@ -127,6 +127,10 @@ largest; measure them in Phase 1.
 - Ranking: sum of IDF weights of matched words + a small boost for domain keywords (whole words). Domain keywords no
   longer filter cards out (the old filter sent "arrested"/"record" to documentation and "call" to blackout_comms).
 - `RagService.explain(query)` returns each passing card with the words that matched.
+- 25 Nov (`fix/retrieval-2`): card phrases are also indexed as one word ("tear gas" → "teargas", "wi-fi" → "wifi") and
+  query word pairs are joined when the corpus writes them as one word ("check point" → "checkpoint"); Kiswahili object
+  markers are stripped after a tense marker or "ku-" ("a-na-ni-fuata", "wa-me-m-kamata"); synonym group
+  car/vehicle/gari. Fixture (54 in-corpus queries incl. 12 new): top-1/2/4 45/48/49 → 50/54/54; off-topic still 0/30.
 - Fixture results (`test/fixtures/retrieval_fixture.dart`, k = 4): EN+SW in-corpus top-1/2/4 went from 26/27/30 to
   33/36/36 of 36; Sheng panic queries from 3/5/6 to 6/6/6; off-topic wrongly accepted from 15 to 0 of 30.
 - `notebook/notebook.ipynb` still contains the **old** retrieval port; it is no longer line-for-line with `rag.dart`.

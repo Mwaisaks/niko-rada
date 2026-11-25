@@ -21,6 +21,15 @@ void main() {
     }
   });
 
+  group('retrieval-2 queries (compounds, object markers, abduction ranking)', () {
+    for (final q in retrieval2Queries) {
+      test('[${q.lang}] top ${q.topN}: ${q.query}', () {
+        final ids = rag.retrieveTopK(q.query, lang: q.lang, k: q.topN).map((c) => c.id).toList();
+        expect(ids.any(q.expected.contains), isTrue, reason: 'expected one of ${q.expected} in top ${q.topN}, got $ids');
+      });
+    }
+  });
+
   group('Sheng panic-button queries retrieve a sensible card (top 4)', () {
     for (final q in shengPanicQueries) {
       test('[sheng] PANIC ${q.query}', () {
@@ -51,6 +60,25 @@ void main() {
       expect(RagService.swStems('niandae'), contains('anda'));
       expect(RagService.swStems('andaa'), contains('anda'));
     });
+    test('Kiswahili object markers are stripped only after a tense marker or "ku-"', () {
+      expect(RagService.swStems('ananifuata'), contains('fuat')); // a-na-ni-fuata: he is following me
+      expect(RagService.swStems('wamemkamata'), contains('kamat')); // wa-me-m-kamata: they arrested him
+      expect(RagService.swStems('wanawakamata'), contains('kamat')); // wa-na-wa-kamata: they arrest them
+      expect(RagService.swStems('kumfuata'), contains('fuat')); // ku-m-fuata: to follow him
+      // No tense marker: a word that merely starts like an object marker is left alone.
+      expect(RagService.swStems('nikizuiwa'), isNot(contains('zuiwa'.substring(2))));
+    });
+    test('compound spellings: card phrases are also indexed joined, query pairs are joined when the corpus does', () {
+      expect(RagService.compoundsOf('Move away from tear gas'), contains('teargas'));
+      expect(RagService.compoundsOf('use the wi-fi'), contains('wifi'));
+      expect(RagService.compoundsOf('away from the gas'), isNot(contains('thegas'))); // stopword pairs skipped
+      expect(rag.explain('police check point').first.matchedTerms, contains('checkpoint'));
+    });
+    test('car / vehicle / gari are one synonym group', () {
+      expect(RagService.formsOf('car', english: true, kiswahili: true), contains('@vehicle'));
+      expect(RagService.formsOf('gari', english: true, kiswahili: true), contains('@vehicle'));
+    });
+
     test('generic words are stopwords, including prefixed Kiswahili verbs', () {
       expect(RagService.tokenise('Please help me, I need to write something'), isEmpty);
       expect(RagService.tokenise('Ninahitaji wakili'), ['wakili']);
@@ -88,7 +116,7 @@ void main() {
   test('report', () {
     if (Platform.environment['RETRIEVAL_REPORT'] != '1') return;
     final out = StringBuffer('\nRETRIEVAL REPORT\n');
-    for (final q in [...inCorpusQueries, ...shengPanicQueries]) {
+    for (final q in [...inCorpusQueries, ...shengPanicQueries, ...retrieval2Queries]) {
       final ids = rag.retrieveTopK(q.query, lang: q.lang).map((c) => c.id).toList();
       final top1 = ids.isNotEmpty && q.expected.contains(ids.first);
       final top2 = ids.take(2).any(q.expected.contains);
