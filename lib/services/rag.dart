@@ -117,6 +117,14 @@ class RagService {
     return buffer.toString();
   }
 
+  /// A verified card by id (e.g. the emergency contacts card), or null.
+  KnowledgeCard? cardById(String id) {
+    for (final c in _cards) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
   bool get isLoaded => _loaded;
   int get cardCount => _cards.length;
 
