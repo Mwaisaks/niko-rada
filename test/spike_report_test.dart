@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:niko_rada/spike/hybrid_debug_screen.dart';
 import 'package:niko_rada/spike/hybrid_inference_channel.dart';
 import 'package:niko_rada/spike/spike_report.dart';
+import 'package:niko_rada/agent/triage.dart';
+import 'package:niko_rada/services/rag.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -123,5 +125,86 @@ void main() {
     expect(copied, contains('Device: Acme Phone 4'));
     expect(copied, contains('CHECK STATUS'));
     expect(copied, contains('on-device model status: UNAVAILABLE'));
+  });
+
+  test('report shows triage raw reply exactly (newlines visible) and the parser verdict', () {
+    final text = SpikeReport.build(device: device, now: t, steps: [
+      SpikeStep(
+        at: t,
+        kind: SpikeStepKind.triage,
+        mode: 'PREFER_ON_DEVICE',
+        promptLabel: 'Triage SW',
+        online: false,
+        route: 'ON_DEVICE',
+        latencyMs: 900,
+        rawReply: 'tear_gas|high|yes\nStay safe.',
+        parseResult: 'REJECTED: more than one line',
+      ),
+    ]);
+    expect(text, contains('#1 TRIAGE'));
+    expect(text, contains('prompt: preset Triage SW'));
+    expect(text, contains(r'raw reply: "tear_gas|high|yes\nStay safe."'));
+    expect(text, contains('parser: REJECTED: more than one line'));
+    expect(text, contains('answered by: ON DEVICE'));
+  });
+
+  test('all three triage situations pass the out-of-corpus gate (so they are actually sent)', () async {
+    final rag = RagService();
+    await rag.loadCards();
+    for (final e in HybridDebugScreenTestHooks.triageSituations.entries) {
+      expect(rag.passesGate(e.value), isTrue, reason: e.key);
+    }
+  });
+
+  testWidgets('Triage test sends three single-turn prompts and reports accepted / rejected / failed', (tester) async {
+    const channel = MethodChannel(HybridInferenceChannel.channelName);
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final prompts = <String>[];
+    final replies = <Object>[
+      'abduction|critical|yes',
+      'Hii ni hali ya hatari: tear_gas|high|yes',
+      PlatformException(code: 'FirebaseAIOnDeviceNotAvailableException', message: 'offline', details: {'online': false}),
+    ];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'deviceInfo') return {'manufacturer': 'Acme', 'model': 'Phone 4'};
+      if (call.method != 'generate') return null;
+      final args = call.arguments as Map;
+      prompts.add(args['prompt'] as String);
+      expect(args['maxOutputTokens'], Triage.maxOutputTokens);
+      final next = replies.removeAt(0);
+      if (next is PlatformException) throw next;
+      return {'text': next, 'route': 'ON_DEVICE', 'mode': 'PREFER_ON_DEVICE', 'online': true, 'latencyMs': 10};
+    });
+    String? copied;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String?;
+      return null;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    tester.view.physicalSize = const Size(1080, 5000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: HybridDebugScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Triage test (EN · SW · Sheng)'));
+    await tester.pumpAndSettle();
+
+    expect(prompts, hasLength(3));
+    expect(prompts.every((p) => p.contains('type|severity|active')), isTrue);
+    expect(find.textContaining('ACCEPTED abduction|critical|yes'), findsOneWidget);
+    expect(find.textContaining('REJECTED'), findsOneWidget);
+    expect(find.textContaining('NO REPLY: FirebaseAIOnDeviceNotAvailableException'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Copy results ('));
+    await tester.pumpAndSettle();
+    expect(copied, contains('prompt: preset Triage EN'));
+    expect(copied, contains('parser: ACCEPTED abduction|critical|yes'));
+    expect(copied, contains('raw reply: "Hii ni hali ya hatari: tear_gas|high|yes"'));
+    expect(copied, contains('parser: REJECTED'));
+    expect(copied, contains('ERROR: FirebaseAIOnDeviceNotAvailableException'));
   });
 }

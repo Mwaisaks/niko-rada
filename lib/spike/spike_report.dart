@@ -33,7 +33,7 @@ class SpikeDeviceInfo {
       );
 }
 
-enum SpikeStepKind { status, download, generate }
+enum SpikeStepKind { status, download, generate, triage }
 
 class SpikeStep {
   final DateTime at;
@@ -49,6 +49,8 @@ class SpikeStep {
   final String? errorMessage;
   final String? output; // only kept for preset prompts
   final String? note; // e.g. download result
+  final String? rawReply; // triage only: the model's exact reply (synthetic situations only)
+  final String? parseResult; // triage only: "ACCEPTED type|severity|active" or "REJECTED: reason"
 
   const SpikeStep({
     required this.at,
@@ -64,6 +66,8 @@ class SpikeStep {
     this.errorMessage,
     this.output,
     this.note,
+    this.rawReply,
+    this.parseResult,
   });
 }
 
@@ -90,7 +94,7 @@ class SpikeReport {
         ..writeln()
         ..writeln('#${i + 1} ${_kind(s.kind)} @ ${_ts(s.at)}');
       if (s.mode != null) b.writeln('  mode: ${s.mode}');
-      if (s.kind == SpikeStepKind.generate) {
+      if (s.kind == SpikeStepKind.generate || s.kind == SpikeStepKind.triage) {
         b.writeln('  prompt: ${s.promptLabel == null ? 'custom (text omitted)' : 'preset ${s.promptLabel}'}');
       }
       if (s.online != null) b.writeln('  network: ${s.online! ? 'online' : 'OFFLINE'}');
@@ -100,6 +104,8 @@ class SpikeReport {
       if (s.latencyMs != null) b.writeln('  latency: ${s.latencyMs} ms');
       if (s.note != null) b.writeln('  result: ${s.note}');
       if (s.errorCode != null) b.writeln('  ERROR: ${s.errorCode}${s.errorMessage == null ? '' : ' — ${_oneLine(s.errorMessage!)}'}');
+      if (s.rawReply != null) b.writeln('  raw reply: "${_visible(s.rawReply!)}"');
+      if (s.parseResult != null) b.writeln('  parser: ${s.parseResult}');
       if (s.output != null && s.promptLabel != null) {
         final out = _oneLine(s.output!);
         b.writeln('  output: ${out.length > _maxOutputChars ? '${out.substring(0, _maxOutputChars)}…' : out}');
@@ -112,6 +118,7 @@ class SpikeReport {
         SpikeStepKind.status => 'CHECK STATUS',
         SpikeStepKind.download => 'DOWNLOAD MODEL',
         SpikeStepKind.generate => 'GENERATE',
+        SpikeStepKind.triage => 'TRIAGE',
       };
 
   static String _route(String r) => switch (r) {
@@ -121,6 +128,12 @@ class SpikeReport {
       };
 
   static String _yn(bool v) => v ? 'yes' : 'no';
+
+  /// Raw reply kept exact but on one line: newlines and tabs shown as \n and \t so format problems stay visible.
+  static String _visible(String s) {
+    final v = s.replaceAll('\n', r'\n').replaceAll('\r', r'\r').replaceAll('\t', r'\t');
+    return v.length > 300 ? '${v.substring(0, 300)}…' : v;
+  }
   static String _oneLine(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
   static String _ts(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');

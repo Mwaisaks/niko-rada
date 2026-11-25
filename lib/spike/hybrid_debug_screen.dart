@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../agent/triage.dart';
+import '../services/rag.dart';
 import 'hybrid_inference_channel.dart';
 import 'spike_report.dart';
 
@@ -23,6 +25,14 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
     'Sheng': 'Kwa steps tatu fupi, mtu afanye nini venye ameguzwa na teargas?',
   };
 
+  /// Synthetic situations for the Triage format test (same prompt and parser as lib/agent/triage.dart).
+  static const triageSituations = {
+    'EN': 'Two men in plain clothes just pushed a young man into a white car near the bus stage. What do I do?',
+    'SW': 'Kuna gesi ya machozi hapa na macho yanauma sana. Nifanye nini sasa?',
+    // Must pass the out-of-corpus gate. Note: 'teargas' (one word) and 'ananifuata' currently fail it; see report.
+    'Sheng': 'Polisi wameshika msee kwa maandamano, ameshikwa bila sababu. Haki zake ni zipi?',
+  };
+
   final _prompt = TextEditingController(text: presets['EN']);
   final _cloudModel = TextEditingController(text: 'gemini-3.5-flash-lite');
   HybridMode _mode = HybridMode.preferOnDevice;
@@ -33,6 +43,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
   String? _error;
   SpikeDeviceInfo? _device;
   final List<SpikeStep> _steps = [];
+  final List<_TriageRow> _triageRows = [];
 
   /// The preset key if the prompt box still holds that preset's exact text; null for anything typed.
   String? get _presetLabel {
@@ -153,6 +164,70 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
         }
       });
 
+  /// Sends the three synthetic situations through the Triage prompt, one single-turn call each, and records the raw
+  /// reply and whether the strict parser accepted it. Errors are recorded per situation and do not stop the run.
+  Future<void> _runTriage() => _run(() async {
+        setState(_triageRows.clear);
+        final rag = RagService();
+        await rag.loadCards();
+        for (final e in triageSituations.entries) {
+          final label = 'Triage ${e.key}';
+          if (!rag.passesGate(e.value)) {
+            _steps.add(SpikeStep(
+                at: DateTime.now(),
+                kind: SpikeStepKind.triage,
+                promptLabel: label,
+                parseResult: 'NOT SENT: failed the out-of-corpus gate'));
+            setState(() => _triageRows.add(_TriageRow(label, null, null, 'NOT SENT: failed the out-of-corpus gate')));
+            continue;
+          }
+          try {
+            final r = await _hybrid.generate(Triage.buildPrompt(e.value),
+                mode: _mode, cloudModel: _cloudModel.text, maxOutputTokens: Triage.maxOutputTokens);
+            String verdict;
+            try {
+              verdict = 'ACCEPTED ${Triage.parse(r.text)}';
+            } on TriageParseException catch (pe) {
+              verdict = 'REJECTED: ${pe.reason}';
+            }
+            final route = switch (r.route) {
+              InferenceRoute.onDevice => 'ON_DEVICE',
+              InferenceRoute.inCloud => 'IN_CLOUD',
+              InferenceRoute.unknown => 'UNKNOWN',
+            };
+            _steps.add(SpikeStep(
+              at: DateTime.now(),
+              kind: SpikeStepKind.triage,
+              mode: r.mode,
+              promptLabel: label,
+              online: r.online,
+              onDeviceStatus: r.onDeviceStatusBefore,
+              route: route,
+              fallbackReason: r.fallbackReason,
+              latencyMs: r.latencyMs,
+              rawReply: r.text,
+              parseResult: verdict,
+            ));
+            setState(() => _triageRows.add(_TriageRow(label, route, r.text, verdict)));
+          } on HybridInferenceException catch (err) {
+            final d = err.diagnostics;
+            _steps.add(SpikeStep(
+              at: DateTime.now(),
+              kind: SpikeStepKind.triage,
+              mode: (d?['mode'] as String?) ?? _mode.wire,
+              promptLabel: label,
+              online: d?['online'] as bool?,
+              onDeviceStatus: d?['onDeviceStatusBefore'] as String?,
+              latencyMs: (d?['latencyMs'] as num?)?.toInt(),
+              errorCode: err.code,
+              errorMessage: err.message,
+              parseResult: 'NO REPLY',
+            ));
+            setState(() => _triageRows.add(_TriageRow(label, null, null, 'NO REPLY: ${err.code}')));
+          }
+        }
+      });
+
   Future<void> _copyResults() async {
     final text = SpikeReport.build(device: _device, steps: _steps);
     await Clipboard.setData(ClipboardData(text: text));
@@ -165,6 +240,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
   bool get _didStatus => _steps.any((s) => s.kind == SpikeStepKind.status);
   bool get _didOnline => _steps.any((s) => s.kind == SpikeStepKind.generate && s.online == true);
   bool get _didOffline => _steps.any((s) => s.kind == SpikeStepKind.generate && s.online == false);
+  bool get _didTriage => _steps.any((s) => s.kind == SpikeStepKind.triage);
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +259,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _Checklist(didStatus: _didStatus, didOnline: _didOnline, didOffline: _didOffline),
+          _Checklist(didStatus: _didStatus, didOnline: _didOnline, didOffline: _didOffline, didTriage: _didTriage),
           const SizedBox(height: 12),
           if (_device != null)
             Text('${_device!.manufacturer} ${_device!.model} · Android ${_device!.androidVersion} · '
@@ -232,6 +308,8 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
             OutlinedButton(onPressed: _busy ? null : _checkStatus, child: const Text('1 · Check status')),
             OutlinedButton(onPressed: _busy ? null : _download, child: const Text('Download on-device model')),
             FilledButton(onPressed: _busy ? null : _generate, child: const Text('Send prompt')),
+            FilledButton.tonal(
+                onPressed: _busy ? null : _runTriage, child: const Text('Triage test (EN · SW · Sheng)')),
           ]),
           if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
           if (_statusLine != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_statusLine!)),
@@ -241,6 +319,27 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
               margin: const EdgeInsets.only(top: 12),
               child: Padding(padding: const EdgeInsets.all(12), child: SelectableText('Error: $_error')),
             ),
+          if (_triageRows.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Triage test', style: Theme.of(context).textTheme.titleMedium),
+                  for (final row in _triageRows) ...[
+                    const Divider(),
+                    Text('${row.label}${row.route == null ? '' : ' · ${row.route}'}'),
+                    if (row.raw != null) SelectableText('raw: "${row.raw}"'),
+                    Text(row.verdict,
+                        style: TextStyle(
+                            color: row.verdict.startsWith('ACCEPTED')
+                                ? Colors.green
+                                : Theme.of(context).colorScheme.error)),
+                  ],
+                ]),
+              ),
+            ),
+          ],
           if (r != null) ...[
             const SizedBox(height: 12),
             _RouteBadge(route: r.route),
@@ -263,11 +362,26 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
   }
 }
 
+/// Exposes the synthetic Triage situations to tests.
+abstract final class HybridDebugScreenTestHooks {
+  static const triageSituations = _HybridDebugScreenState.triageSituations;
+}
+
+class _TriageRow {
+  final String label;
+  final String? route;
+  final String? raw;
+  final String verdict;
+  const _TriageRow(this.label, this.route, this.raw, this.verdict);
+}
+
 class _Checklist extends StatelessWidget {
-  const _Checklist({required this.didStatus, required this.didOnline, required this.didOffline});
+  const _Checklist(
+      {required this.didStatus, required this.didOnline, required this.didOffline, required this.didTriage});
   final bool didStatus;
   final bool didOnline;
   final bool didOffline;
+  final bool didTriage;
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +406,9 @@ class _Checklist extends StatelessWidget {
           step(didOffline, '3. Send a prompt in airplane mode',
               'Turn airplane mode ON, keep this app open, tap "Send prompt" again (EN, then SW and Sheng). '
                   'An error here is a valid result.'),
-          step(false, '4. Copy results', 'Tap "Copy results" and paste the text into WhatsApp or email.'),
+          step(didTriage, '4. Triage test (optional but useful)',
+              'Tap "Triage test" once online and once in airplane mode. Each runs three short situations.'),
+          step(false, '5. Copy results', 'Tap "Copy results" and paste the text into WhatsApp or email.'),
         ]),
       ),
     );
