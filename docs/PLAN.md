@@ -128,6 +128,19 @@ HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native r
   including the pre-window baseline `c745a39` used for the "what we built during the window" summary, and would need
   force-pushes of every branch plus a GitHub cache purge.
 
+### 2026-11-25 — Spike result, phone 1: Samsung Galaxy A16 (SM-A165F), Android 16, 3.8 GB RAM. Reported by owner.
+- **Cloud path works** through Firebase AI Logic (`PREFER_ON_DEVICE` → `IN_CLOUD`, fallback reason shown). Latency:
+  first call 11.8 s, then 1.0–4.4 s.
+- **On-device: `UNAVAILABLE`, as expected** (A-series is not on the Prompt API device list). `download()` reported
+  "completed" five times while status stayed `UNAVAILABLE`: trust `checkStatus()`, never the download result.
+- **Offline with no Nano:** every call failed in 50–95 ms with a generic `UnknownException` ("Something unexpected
+  happened."). This is the "neither path" case; the app must map it to a typed error and fall back to limited mode.
+- **Triage format: 6 of 6 replies accepted** by the strict parser (all via cloud). The Sheng police-arrest situation was
+  labelled `abduction`; the type list has no "arrest" type (taxonomy gap, not a format failure).
+- App Check: a debug token built into the APK worked for a remote phone (token value not recorded anywhere).
+- **Kill rule status:** the deadline (Wed 25 Nov 12:00 EAT) passed with no Nano-capable phone tested. On-device
+  remains unproven. Decision on Android vs Web: **pending owner**.
+
 ## Open risks (from Phase 0 research; unconfirmed)
 1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design
    above; test on the Nano phone (Phase 4 matrix row).
