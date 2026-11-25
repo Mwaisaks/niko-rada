@@ -1,7 +1,8 @@
 # Limited mode — proposal (awaiting owner decision)
 
-Status: proposal, 25 Nov 2026. Nothing below is implemented yet except the typed `NO_ROUTE` error it relies on
-(`lib/spike/hybrid_inference_channel.dart`, branch `spike/hybrid-inference`).
+Status: decisions accepted by the owner 25 Nov 2026 (2 cards, always the emergency contacts card, pre-flight + `NO_ROUTE`
+backstop, incident form deferred). Model layer implemented on `feat/phase1-core`: `lib/agent/answer_flow.dart`
+(`AnswerFlow`, `LimitedModeView`, `AgentText`), tests in `test/answer_flow_test.dart`. UI not built yet.
 
 ## Why
 On the Galaxy A16 spike run, every request made offline failed in 50–95 ms with a generic `UnknownException`: no
@@ -20,7 +21,8 @@ Detection, two layers:
 `download()` results are never used to decide this (on the A16 it reported "completed" while status stayed `UNAVAILABLE`).
 
 ## What it shows (retrieval only, no generation, no network)
-The out-of-corpus gate still runs first. Off-topic input gets the usual refusal plus contacts, as today.
+The out-of-corpus gate still runs first. Off-topic input gets the fixed refusal plus the emergency contacts card.
+(Correction: an earlier draft said "as today"; the current app's refusal shows no contacts. The new flow adds them.)
 
 For in-corpus input:
 1. **Banner** (EN/SW): "No connection, and this phone can't run the on-device AI. Showing verified guidance from the

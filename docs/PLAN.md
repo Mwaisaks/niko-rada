@@ -50,6 +50,11 @@ Scope, in priority order:
        Progress 25 Nov (`feat/inference-interface`, not merged): `lib/inference/inference_service.dart` interface + test
        fake; Triage ported to `lib/agent/triage.dart` (gate first, one-line `type|severity|active` output, strict
        parser, tests). Not yet wired to the Kotlin bridge.
+       Progress 25 Nov (`feat/phase1-core`, not merged until the Android/Web decision): `HybridInferenceService`
+       wires the interface to the Kotlin bridge with consent-aware mode resolution and an `availability()` pre-flight;
+       cloud consent model (`lib/inference/cloud_consent.dart`, default off, revocable); Guide ported
+       (`lib/agent/guide.dart`); limited mode + answer flow (`lib/agent/answer_flow.dart`); Triage `arrest` type.
+       Existing app (flutter_gemma path) unchanged.
 2. [ ] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
        behind the same out-of-corpus gate as Guide.
 3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
