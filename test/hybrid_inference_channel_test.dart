@@ -50,18 +50,46 @@ void main() {
     expect(r.fallbackReason, contains('UNAVAILABLE'));
   });
 
-  test('native errors surface as HybridInferenceException with diagnostics', () async {
+  test('Galaxy A16 case: offline + no on-device model + generic UnknownException → NO_ROUTE', () async {
     mock((c) async => throw PlatformException(
-          code: 'FirebaseAIOnDeviceNotAvailableException',
-          message: 'not available',
-          details: {'online': false, 'onDeviceStatusBefore': 'UNAVAILABLE'},
+          code: 'UnknownException',
+          message: 'Something unexpected happened.',
+          details: {'mode': 'PREFER_ON_DEVICE', 'online': false, 'onDeviceStatusBefore': 'UNAVAILABLE', 'latencyMs': 91},
         ));
     await expectLater(
-      HybridInferenceChannel().generate('hi', mode: HybridMode.onlyOnDevice),
+      HybridInferenceChannel().generate('hi'),
       throwsA(isA<HybridInferenceException>()
-          .having((e) => e.code, 'code', 'FirebaseAIOnDeviceNotAvailableException')
-          .having((e) => e.diagnostics?['online'], 'online', false)),
+          .having((e) => e.code, 'code', 'NO_ROUTE')
+          .having((e) => e.sdkCode, 'sdkCode', 'UnknownException')
+          .having((e) => e.detail, 'detail', contains('SDK: UnknownException'))
+          .having((e) => e.toInferenceException().code, 'InferenceException code', 'NO_ROUTE')),
     );
+  });
+
+  group('classifyFailure', () {
+    Map<String, Object> d(String mode, bool online, String status) =>
+        {'mode': mode, 'online': online, 'onDeviceStatusBefore': status};
+    final cases = <(String, Map<Object?, Object?>?), HybridFailure>{
+      (('UnknownException', d('PREFER_ON_DEVICE', false, 'UNAVAILABLE'))): HybridFailure.noRoute,
+      (('UnknownException', d('PREFER_ON_DEVICE', false, 'DOWNLOADABLE'))): HybridFailure.noRoute,
+      (('UnknownException', d('PREFER_IN_CLOUD', false, 'UNAVAILABLE'))): HybridFailure.noRoute,
+      (('UnknownException', d('ONLY_IN_CLOUD', false, 'AVAILABLE'))): HybridFailure.offline,
+      (('FirebaseAIOnDeviceNotAvailableException', d('ONLY_ON_DEVICE', true, 'UNAVAILABLE'))):
+          HybridFailure.onDeviceUnavailable,
+      (('FirebaseAIOnDeviceNotAvailableException', d('ONLY_ON_DEVICE', false, 'UNAVAILABLE'))):
+          HybridFailure.onDeviceUnavailable,
+      (('FirebaseAIOnDeviceUnknownException', d('ONLY_ON_DEVICE', false, 'AVAILABLE'))): HybridFailure.onDeviceError,
+      (('FirebaseAIOnDeviceUnknownException', d('PREFER_ON_DEVICE', false, 'AVAILABLE'))): HybridFailure.onDeviceError,
+      (('QuotaExceededException', d('PREFER_ON_DEVICE', true, 'UNAVAILABLE'))): HybridFailure.cloudError,
+      (('PermissionMissingException', d('ONLY_IN_CLOUD', true, 'UNAVAILABLE'))): HybridFailure.cloudError,
+      (('FIREBASE_NOT_CONFIGURED', null)): HybridFailure.notConfigured,
+      (('BAD_ARGS', null)): HybridFailure.badRequest,
+      (('UnknownException', null)): HybridFailure.unknown, // no diagnostics: do not guess
+      (('UnknownException', {'mode': 'PREFER_ON_DEVICE'})): HybridFailure.unknown, // network state unknown
+    };
+    cases.forEach((input, expected) {
+      test('${input.$1} ${input.$2} → ${expected.code}', () => expect(classifyFailure(input.$1, input.$2), expected));
+    });
   });
 
   test('missing Firebase config is reported, not thrown as a crash', () async {

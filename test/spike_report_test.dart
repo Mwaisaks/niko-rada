@@ -163,7 +163,10 @@ void main() {
     final replies = <Object>[
       'abduction|critical|yes',
       'Hii ni hali ya hatari: tear_gas|high|yes',
-      PlatformException(code: 'FirebaseAIOnDeviceNotAvailableException', message: 'offline', details: {'online': false}),
+      PlatformException(
+          code: 'UnknownException',
+          message: 'Something unexpected happened.',
+          details: {'mode': 'PREFER_ON_DEVICE', 'online': false, 'onDeviceStatusBefore': 'UNAVAILABLE'}),
     ];
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'deviceInfo') return {'manufacturer': 'Acme', 'model': 'Phone 4'};
@@ -197,7 +200,7 @@ void main() {
     expect(prompts.every((p) => p.contains('type|severity|active')), isTrue);
     expect(find.textContaining('ACCEPTED abduction|critical|yes'), findsOneWidget);
     expect(find.textContaining('REJECTED'), findsOneWidget);
-    expect(find.textContaining('NO REPLY: FirebaseAIOnDeviceNotAvailableException'), findsOneWidget);
+    expect(find.textContaining('NO REPLY: NO_ROUTE (limited mode)'), findsOneWidget);
 
     await tester.tap(find.textContaining('Copy results ('));
     await tester.pumpAndSettle();
@@ -205,6 +208,7 @@ void main() {
     expect(copied, contains('parser: ACCEPTED abduction|critical|yes'));
     expect(copied, contains('raw reply: "Hii ni hali ya hatari: tear_gas|high|yes"'));
     expect(copied, contains('parser: REJECTED'));
-    expect(copied, contains('ERROR: FirebaseAIOnDeviceNotAvailableException'));
+    expect(copied, contains('ERROR: NO_ROUTE'));
+    expect(copied, contains('SDK: UnknownException'));
   });
 }

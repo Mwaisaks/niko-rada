@@ -100,6 +100,38 @@ plus `firebase-appcheck-debug:20.1.0` inspected with `javap`.
 **Recommendation:** use (a). It keeps enforcement on and gives a remote tester a working build. Use (b) only as a
 short-lived fallback if (a) fails, and re-enforce immediately after.
 
+## (f) Spike results on real hardware
+
+### Phone 1 — Samsung Galaxy A16 (SM-A165F), Android 16 (API 36), 3.8 GB RAM — 25 Nov 2026
+Remote run with the spike APK (Firebase configured, App Check debug token built in; token value not recorded).
+
+| What | Result |
+|---|---|
+| `checkStatus()` | `UNAVAILABLE` (3 checks) — expected; A-series is not on the Prompt API device list |
+| `download()` | returned **"completed"** 5 times while status stayed `UNAVAILABLE` |
+| Generate, online, `PREFER_ON_DEVICE` (EN / SW / Sheng presets) | **IN_CLOUD**, fallback reason shown; 11.8 s (first call), 4.4 s, 1.9 s |
+| Triage, online, ×2 runs (EN / SW / Sheng) | **6 of 6 accepted** by the strict parser, all IN_CLOUD, 1.0–2.9 s |
+| Generate, **offline**, `PREFER_ON_DEVICE` | **`UnknownException`** "Something unexpected happened." in 52–94 ms (×3) |
+
+Findings:
+- The cloud fallback path works end to end with App Check enforced.
+- `download()` success is **not** evidence that on-device works. Use `checkStatus()` only.
+- Offline + no on-device model surfaces as a generic `UnknownException`, not as `FirebaseAIOnDeviceNotAvailableException`.
+  The app has to classify it from network state + model status (done on the spike branch, see below).
+- Triage replies were well-formed in all three languages via cloud. Labels: EN abduction → `abduction|high|yes`;
+  SW tear gas → `tear_gas|high|yes`; Sheng police arrest → `abduction|high|yes` (no "arrest" type exists in the list).
+- Cloud answers to the open spike presets were ungrounded (expected: presets bypass the corpus). The Sheng preset was
+  answered in Kiswahili and called tear gas "machozi ya pilipili" (pepper tears), which is wrong; free-form generation
+  is not safe to show as guidance, which supports grounded-only answers.
+- Typed errors (spike branch): `classifyFailure()` in `lib/spike/hybrid_inference_channel.dart` maps failures to
+  `NO_ROUTE`, `OFFLINE`, `ON_DEVICE_UNAVAILABLE`, `ON_DEVICE_ERROR`, `CLOUD_ERROR` (+ config errors) from mode, network
+  state and on-device status; the SDK's own code is kept. The A16 offline case maps to `NO_ROUTE`.
+  What the app does then: `docs/LIMITED_MODE.md` (proposal).
+- Still untested: on-device on a Nano-capable phone, `ONLY_ON_DEVICE` / `ONLY_IN_CLOUD` / `PREFER_IN_CLOUD` modes.
+
+### Phone 2 — Nano-capable phone
+Not yet tested.
+
 ## Could not confirm
 - Exact behaviour of `PREFER_ON_DEVICE` / `ONLY_ON_DEVICE` when **offline** on an unsupported phone (expected: error;
   test C.5 in `SPIKE_CHECKLIST.md`).

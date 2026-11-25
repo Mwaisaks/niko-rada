@@ -83,7 +83,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
     try {
       await action();
     } on HybridInferenceException catch (e) {
-      setState(() => _error = '${e.code}\n${e.message}');
+      setState(() => _error = '${e.code}\n${e.detail}');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -99,7 +99,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
           setState(() => _statusLine = 'On-device model: ${s.onDeviceStatus} · ${s.online ? 'online' : 'offline'}');
         } on HybridInferenceException catch (e) {
           _steps.add(SpikeStep(
-              at: DateTime.now(), kind: SpikeStepKind.status, errorCode: e.code, errorMessage: e.message));
+              at: DateTime.now(), kind: SpikeStepKind.status, errorCode: e.code, errorMessage: e.detail));
           rethrow;
         }
       });
@@ -119,7 +119,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
               '${r['error'] == null ? '' : ' · ${r['error']}'}');
         } on HybridInferenceException catch (e) {
           _steps.add(SpikeStep(
-              at: DateTime.now(), kind: SpikeStepKind.download, errorCode: e.code, errorMessage: e.message));
+              at: DateTime.now(), kind: SpikeStepKind.download, errorCode: e.code, errorMessage: e.detail));
           rethrow;
         }
       });
@@ -158,7 +158,7 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
             onDeviceStatus: d?['onDeviceStatusBefore'] as String?,
             latencyMs: (d?['latencyMs'] as num?)?.toInt(),
             errorCode: e.code,
-            errorMessage: e.message,
+            errorMessage: e.detail,
           ));
           rethrow;
         }
@@ -220,10 +220,10 @@ class _HybridDebugScreenState extends State<HybridDebugScreen> {
               onDeviceStatus: d?['onDeviceStatusBefore'] as String?,
               latencyMs: (d?['latencyMs'] as num?)?.toInt(),
               errorCode: err.code,
-              errorMessage: err.message,
+              errorMessage: err.detail,
               parseResult: 'NO REPLY',
             ));
-            setState(() => _triageRows.add(_TriageRow(label, null, null, 'NO REPLY: ${err.code}')));
+            setState(() => _triageRows.add(_TriageRow(label, null, null, 'NO REPLY: ${err.code}${err.failure == HybridFailure.noRoute ? ' (limited mode)' : ''}')));
           }
         }
       });

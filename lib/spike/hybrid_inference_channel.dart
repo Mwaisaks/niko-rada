@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import '../inference/inference_service.dart' as inference;
 
 /// Inference modes, mirroring com.google.firebase.ai.InferenceMode (Firebase AI Logic, Android).
 enum HybridMode { preferOnDevice, onlyOnDevice, preferInCloud, onlyInCloud }
@@ -61,13 +62,81 @@ class HybridResult {
       );
 }
 
-class HybridInferenceException implements Exception {
-  final String code; // e.g. FIREBASE_NOT_CONFIGURED, FirebaseAIOnDeviceNotAvailableException, ...
+/// Typed failure codes. The Firebase SDK reports "offline and no on-device model" as a generic `UnknownException`
+/// (seen on a Galaxy A16, 25 Nov), so the code is derived from the request mode, the network state and the on-device
+/// model status that the Kotlin side sends with every error. The SDK's own error is kept in [sdkCode]/[sdkMessage].
+enum HybridFailure {
+  /// No network, and this phone has no usable on-device model: neither path can answer. → limited mode.
+  noRoute('NO_ROUTE', "No connection, and this phone can't run the on-device model."),
+
+  /// A cloud-only request while offline.
+  offline('OFFLINE', 'No connection, and this request needs the cloud.'),
+
+  /// An on-device-only request on a phone whose on-device model is not available.
+  onDeviceUnavailable('ON_DEVICE_UNAVAILABLE', 'The on-device model is not available on this phone.'),
+
+  /// The on-device model was available but the call failed (quota, busy, invalid request...).
+  onDeviceError('ON_DEVICE_ERROR', 'The on-device model failed to answer.'),
+
+  /// Online, but the cloud call failed (App Check, quota, server, blocked content...).
+  cloudError('CLOUD_ERROR', 'The cloud model failed to answer.'),
+  notConfigured('FIREBASE_NOT_CONFIGURED', 'Firebase is not configured in this build.'),
+  noPlatform('NO_PLATFORM', 'Hybrid inference is only wired up on Android.'),
+  badRequest('BAD_ARGS', 'Invalid request.'),
+  unknown('UNKNOWN', 'Something unexpected happened.');
+
+  const HybridFailure(this.code, this.message);
+  final String code;
   final String message;
+}
+
+/// Classifies a native failure. Pure function, unit-tested.
+HybridFailure classifyFailure(String sdkCode, Map<Object?, Object?>? diagnostics) {
+  switch (sdkCode) {
+    case 'FIREBASE_NOT_CONFIGURED':
+      return HybridFailure.notConfigured;
+    case 'BAD_ARGS':
+      return HybridFailure.badRequest;
+    case 'NO_PLATFORM':
+      return HybridFailure.noPlatform;
+  }
+  final mode = diagnostics?['mode'] as String?;
+  final online = diagnostics?['online'] as bool?;
+  final onDeviceReady = diagnostics?['onDeviceStatusBefore'] == 'AVAILABLE';
+  if (mode == null || online == null) return HybridFailure.unknown;
+  return switch (mode) {
+    'ONLY_ON_DEVICE' => onDeviceReady ? HybridFailure.onDeviceError : HybridFailure.onDeviceUnavailable,
+    'ONLY_IN_CLOUD' => online ? HybridFailure.cloudError : HybridFailure.offline,
+    'PREFER_ON_DEVICE' || 'PREFER_IN_CLOUD' => online
+        ? HybridFailure.cloudError
+        : (onDeviceReady ? HybridFailure.onDeviceError : HybridFailure.noRoute),
+    _ => HybridFailure.unknown,
+  };
+}
+
+class HybridInferenceException implements Exception {
+  final HybridFailure failure;
+
+  /// The SDK / native error as received (e.g. `UnknownException`, `FirebaseAIOnDeviceNotAvailableException`).
+  final String? sdkCode;
+  final String? sdkMessage;
   final Map<Object?, Object?>? diagnostics;
-  const HybridInferenceException(this.code, this.message, [this.diagnostics]);
+
+  const HybridInferenceException(this.failure, {this.sdkCode, this.sdkMessage, this.diagnostics});
+
+  /// Typed code, e.g. `NO_ROUTE`.
+  String get code => failure.code;
+  String get message => failure.message;
+
+  /// Message plus the SDK's original error, for logs and the spike report.
+  String get detail =>
+      sdkCode == null || sdkCode == code ? message : '$message (SDK: $sdkCode${sdkMessage == null ? '' : ' — $sdkMessage'})';
+
+  /// The app-level exception for InferenceService (Phase 1).
+  inference.InferenceException toInferenceException() => inference.InferenceException(code, detail);
+
   @override
-  String toString() => 'HybridInferenceException($code): $message';
+  String toString() => 'HybridInferenceException($code): $detail';
 }
 
 /// Dart client for the Kotlin HybridInferencePlugin (android/app/src/main/kotlin/.../HybridInferencePlugin.kt),
@@ -113,9 +182,10 @@ class HybridInferenceChannel {
       final r = await _channel.invokeMethod<Map<Object?, Object?>>(method, args);
       return r ?? const {};
     } on PlatformException catch (e) {
-      throw HybridInferenceException(e.code, e.message ?? '', e.details as Map<Object?, Object?>?);
+      final d = e.details as Map<Object?, Object?>?;
+      throw HybridInferenceException(classifyFailure(e.code, d), sdkCode: e.code, sdkMessage: e.message, diagnostics: d);
     } on MissingPluginException {
-      throw const HybridInferenceException('NO_PLATFORM', 'Hybrid inference is only wired up on Android.');
+      throw const HybridInferenceException(HybridFailure.noPlatform);
     }
   }
 }
