@@ -47,10 +47,21 @@ Scope, in priority order:
        single-turn**: remove the reused `InferenceChat` session (`gemma_service.dart:103-113`).
        Port **Triage** to Dart (prompt from notebook `triage_prompt`), then run **Retrieve** and **Guide** on the new
        `InferenceService`.
-2. [ ] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
-       behind the same out-of-corpus gate as Guide.
+       Progress 25 Nov (`feat/inference-interface`, not merged): `lib/inference/inference_service.dart` interface + test
+       fake; Triage ported to `lib/agent/triage.dart` (gate first, one-line `type|severity|active` output, strict
+       parser, tests). Not yet wired to the Kotlin bridge.
+       Progress 25 Nov (`feat/phase1-core`, not merged until the Android/Web decision): `HybridInferenceService`
+       wires the interface to the Kotlin bridge with consent-aware mode resolution and an `availability()` pre-flight;
+       cloud consent model (`lib/inference/cloud_consent.dart`, default off, revocable); Guide ported
+       (`lib/agent/guide.dart`); limited mode + answer flow (`lib/agent/answer_flow.dart`); Triage `arrest` type.
+       Progress 26 Nov: the app's answer screen now runs `AnswerFlow` on `HybridInferenceService` (via `AppState`);
+       the model-download gate is gone from `main.dart`. The incident logger still uses the old Gemma extractor until
+       Branch replaces it.
+2. [x] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
+       behind the same out-of-corpus gate as Guide. (26 Nov: `lib/agent/branch.dart`, Log tab; `test/branch_test.dart`.)
 3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
-4. [ ] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
+4. [x] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
+       (26 Nov, `feat/remove-gemma`: all Gemma code, the HYBRID_AI flag and the arm64-only ABI filter removed.)
 
 Prompt budget (Nano limits):
 - Keep each on-device request under ~4,000 tokens; aim for replies under 256 tokens (`maxOutputTokens`).
@@ -65,10 +76,12 @@ Language design (to test on the borrowed phone):
   demoable on-device and in cloud.
 
 ## Phase 2 — Wed 25 Nov: hybrid behaviour and UX
-- [ ] Routing rules (default on-device; cloud only with consent; offline → on-device only; no Nano + no consent → limited mode)
+- [x] Routing rules (default on-device; cloud only with consent; offline → on-device only; no Nano + no consent → limited mode)
       with unit tests (supported / unsupported / offline / cloud error / consent denied).
-- [ ] Route badge + fallback reason in the UI; clear offline state and "no on-device model" state.
-- [ ] Consent screen for cloud use of crisis content; revocable in Settings.
+- [x] Route badge + fallback reason in the UI; clear offline state and "no on-device model" state.
+      (26 Nov: `RouteStatusStrip` on Actions/Ask/answer screens, `RouteBadge` per answer, limited-mode banner.)
+- [x] Consent screen for cloud use of crisis content; revocable in Settings.
+      (26 Nov: `lib/ui/consent_sheet.dart`, opened from the status strip, the limited-mode banner or Settings.)
 - Acceptance: toggling airplane mode visibly changes behaviour, no crashes.
 
 ## Phase 3 — Thu 26 Nov: safety, design, Firebase extras
@@ -88,7 +101,8 @@ Language design (to test on the borrowed phone):
 ## Phase 5 — Sat 28 Nov: submission assets
 - [ ] README: value proposition, architecture diagram, where Firebase AI Logic is called, setup/run steps, license, limitations.
 - [ ] "What we built during the window" summary (diff against `c745a39`, honest).
-- [ ] Re-verify every statistic against its primary source before using it.
+- [x] Statistics verified by the owner (26 Nov). Remaining: fill in each source link in the README Sources table
+      (`docs/README_PLAN.md`).
 - [ ] Devpost text: Firebase AI Logic usage, features, value proposition.
 - [ ] Demo video script (≤ 3:00): problem (20s) → airplane mode, on-device answer (45s) → budget phone online, cloud with
       consent (45s) → safety/escalation (30s) → architecture + impact + honest limitation (30s). Filmed on real phones.
@@ -99,6 +113,8 @@ Language design (to test on the borrowed phone):
 - [ ] Submit on Devpost with **Android** selected, by evening EAT. Monday is buffer only.
 
 ## Out of scope
+- **iOS** (Apple Foundation Models via Firebase AI Logic): out of scope for this build; listed as future work in the README.
+  Do not work on it. (Owner, 26 Nov.)
 HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native review.
 
 ## Decision log
@@ -151,6 +167,13 @@ Friends are testing the spike APK on their phones. For each report:
 - `UNAVAILABLE` after AICore updates and a download attempt → **that phone is unsupported** (not a verdict on Android).
 - No usable report by Thu 26 Nov 09:00 EAT → **decide together with the owner**.
 Nothing merges into `main` from `feat/phase1-core` until this is decided.
+
+### 2026-11-26 — Platform stays Android; on-device still unproven. Confirmed by owner.
+- No friend's phone has reported on-device `AVAILABLE` with an "answered by: ON DEVICE" reply.
+- Decision: keep building Android (all remaining work is Dart/UI). Keep looking for a Nano-capable phone until the
+  scope freeze (end of Fri 27 Nov). If none is found, the demo shows cloud + limited mode, and the video and Devpost text
+  say plainly that on-device inference was not filmed on a supported phone.
+- `feat/phase1-core` may now merge into `main`.
 
 ## Open risks (from Phase 0 research; unconfirmed)
 1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design

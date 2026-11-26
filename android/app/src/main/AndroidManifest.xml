@@ -1,9 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Network: only for one-time model download -->
+    <!-- Network: cloud route of Firebase AI Logic (only with the user's consent) and the on-device model download -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Foreground service: flutter_gemma uses this for large (>500 MB) downloads -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Network state: online/offline drives the route check and the status shown in the UI -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Microphone: for voice incident logging -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
@@ -32,18 +31,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Required for GPU backend on Android 12+: OpenCL loader uses
-             libvndksupport.so to dlopen the vendor driver. Without this,
-             the engine falls back to CPU. -->
-        <uses-native-library android:name="libvndksupport.so" android:required="false" />
-        <uses-native-library android:name="libOpenCL.so" android:required="false" />
-        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
-        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
-        <!-- flutter_gemma foreground service for large model downloads -->
-        <service
-            android:name="dev.flutter.plugins.flutter_gemma.ModelInstallService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/app_state.dart';
 import 'response_screen.dart';
+import 'route_status.dart';
 
 /// F2 — Panic quick-action grid.
 /// Large bilingual buttons, each pre-seeds a query → grounded answer.
@@ -17,7 +18,9 @@ class PanicGrid extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: CustomScrollView(
+        child: Column(children: [
+          const RouteStatusStrip(),
+          Expanded(child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
@@ -25,24 +28,6 @@ class PanicGrid extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Container(
-                        width: 10, height: 10,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.safe,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        lang == 'sw' ? 'Nje ya Mtandao' : lang == 'sheng' ? 'Offline — Sawa!' : 'Offline — All local',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppTheme.safe, letterSpacing: 1.2,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ]),
-                    const SizedBox(height: 12),
                     Text(
                       lang == 'sw' ? 'Niko Rada' : 'Niko Rada',
                       style: Theme.of(context).textTheme.displayMedium?.copyWith(
@@ -52,10 +37,10 @@ class PanicGrid extends StatelessWidget {
                     ),
                     Text(
                       lang == 'sw'
-                          ? 'Msaidizi wa usalama — hakuna mtandao unaohitajika'
+                          ? 'Msaidizi wa usalama — mwongozo uliothibitishwa, hata bila mtandao'
                           : lang == 'sheng'
-                              ? 'Safety msaidizi — no net needed'
-                              : 'Safety companion — no network needed',
+                              ? 'Safety msaidizi — verified guidance, hata bila net'
+                              : 'Safety companion — verified guidance, even offline',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.onSurfaceDim),
                     ),
@@ -84,7 +69,8 @@ class PanicGrid extends StatelessWidget {
               ),
             ),
           ],
-        ),
+        )),
+        ]),
       ),
     );
   }

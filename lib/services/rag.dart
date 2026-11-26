@@ -77,7 +77,7 @@ class RagService {
   List<KnowledgeCard> retrieveTopK(String query, {String lang = 'en', int k = 4}) =>
       explain(query).take(k).map((m) => m.card).toList();
 
-  /// The single out-of-corpus gate shared by Guide (GemmaService.answer) and extraction (ExtractorService).
+  /// The single out-of-corpus gate shared by Triage, Guide and Branch (lib/agent/).
   bool passesGate(String query, {String lang = 'en'}) => retrieveTopK(query, lang: lang, k: 1).isNotEmpty;
 
   /// All cards that pass the gate, best first, with the words that matched (for debugging and tests).
@@ -115,6 +115,14 @@ class RagService {
       buffer.writeln();
     }
     return buffer.toString();
+  }
+
+  /// A verified card by id (e.g. the emergency contacts card), or null.
+  KnowledgeCard? cardById(String id) {
+    for (final c in _cards) {
+      if (c.id == id) return c;
+    }
+    return null;
   }
 
   bool get isLoaded => _loaded;

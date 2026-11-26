@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
+import 'consent_sheet.dart';
+import 'route_status.dart';
 
 /// F4 — Language toggle + app settings.
 class SettingsScreen extends StatelessWidget {
@@ -53,7 +55,20 @@ class SettingsScreen extends StatelessWidget {
           const Divider(),
           const SizedBox(height: 16),
 
-          // About / offline guarantee
+          // AI routes and cloud consent
+          Text(
+            lang == 'sw' ? 'AI na faragha' : 'AI and privacy',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.onSurfaceDim, letterSpacing: 0.8),
+          ),
+          const SizedBox(height: 12),
+          const _CloudConsentTile(),
+
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+
+          // About
           Text(
             lang == 'sw' ? 'Kuhusu Niko Rada' : 'About Niko Rada',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -63,10 +78,10 @@ class SettingsScreen extends StatelessWidget {
           _InfoCard(
             icon: Icons.wifi_off_rounded,
             color: AppTheme.safe,
-            title: lang == 'sw' ? 'Hakuna mtandao unaohitajika' : 'No network required',
+            title: lang == 'sw' ? 'Inafanya kazi bila mtandao' : 'Works without a connection',
             body: lang == 'sw'
-                ? 'Niko Rada inafanya kazi kikamilifu bila mtandao. Gemma 4 inafanya kazi kwenye simu yako — hakuna data inayotoka nje.'
-                : 'Niko Rada works fully offline. Gemma 4 runs on your device — no data leaves your phone.',
+                ? 'Kwenye simu zinazoweza kuendesha Gemini Nano, majibu hutengenezwa ndani ya simu, bila mtandao. Kwenye simu nyingine, maktaba iliyothibitishwa bado inafanya kazi bila mtandao; majibu ya AI yanahitaji mtandao na idhini yako.'
+                : 'On phones that can run Gemini Nano, answers are generated on the phone, offline. On other phones the verified library still works offline; AI answers then need a connection and your permission.',
           ),
           const SizedBox(height: 10),
           _InfoCard(
@@ -74,8 +89,8 @@ class SettingsScreen extends StatelessWidget {
             color: AppTheme.primary,
             title: lang == 'sw' ? 'Faragha kwa muundo' : 'Privacy by design',
             body: lang == 'sw'
-                ? 'Hakuna akaunti, hakuna telemetry, hakuna seva. Ripoti zinabaki kwenye simu yako hadi utakapozituma.'
-                : 'No accounts, no telemetry, no server. Reports stay on your device until you choose to send them.',
+                ? 'Hakuna akaunti. Maandishi yako hutumwa kwa AI ya mtandaoni tu ukiruhusu. Ripoti zinabaki kwenye simu yako.'
+                : 'No accounts. Your text goes to the cloud AI only if you allow it. Reports stay on your phone.',
           ),
           const SizedBox(height: 10),
           _InfoCard(
@@ -98,7 +113,7 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 32),
           Text(
-            'Niko Rada v1.0.0 · Build with Gemma: GDG on Campus UoN',
+            'Niko Rada · Firebase AI Logic hybrid inference',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: AppTheme.onSurfaceDim),
             textAlign: TextAlign.center,
@@ -212,6 +227,60 @@ class _InfoCard extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppTheme.onSurfaceDim, height: 1.5)),
         ])),
+      ]),
+    );
+  }
+}
+
+class _CloudConsentTile extends StatelessWidget {
+  const _CloudConsentTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final lang = state.language;
+    final sw = lang == 'sw' || lang == 'sheng';
+    final granted = state.consent.granted;
+    final status = RouteStatusText.of(state.availability, lang);
+    final t = Theme.of(context).textTheme;
+    final onDevice = state.availability?.onDeviceStatus ?? '…';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SwitchListTile(
+          key: const Key('consent-switch'),
+          contentPadding: EdgeInsets.zero,
+          value: granted,
+          title: Text(sw ? 'Ruhusu AI ya mtandaoni' : 'Allow cloud AI', style: t.titleMedium),
+          subtitle: Text(
+            sw
+                ? 'Imezimwa kwa chaguo-msingi. Ikiwashwa, maelezo yako na kadi 2 za maktaba hutumwa kwa Gemini ya Google kupitia Firebase.'
+                : 'Off by default. When on, your text and 2 library cards are sent to Google\'s Gemini through Firebase.',
+            style: t.bodySmall?.copyWith(color: AppTheme.onSurfaceDim, height: 1.4),
+          ),
+          onChanged: (v) async {
+            if (v) {
+              await showCloudConsentSheet(context, state.consent, lang);
+            } else {
+              await state.consent.revoke();
+            }
+          },
+        ),
+        const SizedBox(height: 4),
+        Row(children: [
+          Icon(status.icon, size: 14, color: status.color),
+          const SizedBox(width: 6),
+          Expanded(child: Text(status.label, style: t.labelSmall?.copyWith(color: status.color))),
+        ]),
+        const SizedBox(height: 4),
+        Text(sw ? 'Hali ya AI ndani ya simu: $onDevice' : 'On-device model status: $onDevice',
+            style: t.labelSmall?.copyWith(color: AppTheme.onSurfaceDim)),
       ]),
     );
   }

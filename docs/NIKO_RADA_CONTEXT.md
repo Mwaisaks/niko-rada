@@ -41,9 +41,9 @@ reach the right human help (lawyers, medics, rights orgs), plus the contacts the
 
 ## Evidence / statistics
 Statistics in `DESIGN.md` / `WRITEUP.md` (June 2024 ~40% connectivity drop, 450% rise in enforced disappearances
-2023→2024, Electoral Vulnerability Index ~84%, 1,133 deaths in 2007–08) come from the owner's notes. **Re-verify each one
-against its primary source before it goes into the README or Devpost text.** Do not add usage numbers, partnerships or
-outcomes; none exist.
+2023→2024, Electoral Vulnerability Index ~84%, 1,133 deaths in 2007–08) are **verified by the owner** (26 Nov 2026).
+Each one goes into the README with a link to its source (see the Sources table in `docs/README_PLAN.md`). Do not add
+usage numbers, partnerships or outcomes; none exist.
 
 ## Scope for this build
 In: Firebase AI Logic hybrid inference behind one `InferenceService`, the five-step agent loop in the app, route badge +

@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
+import '../agent/branch.dart';
+import '../inference/inference_service.dart';
 import '../providers/app_state.dart';
-import '../services/extractor.dart';
 import '../services/store.dart';
 import '../models/incident_report.dart';
 import '../theme/app_theme.dart';
+import 'route_status.dart';
 
-/// F3 — Offline incident logger.
-/// Text or voice → Gemma extraction → structured report → local pending-send queue.
+/// F3 — Incident logger.
+/// Account → out-of-corpus gate → Triage → (active incident) Branch report on [InferenceService] → saved on the phone.
+/// Nothing is sent anywhere; reports stay on the phone.
 class LoggerScreen extends StatefulWidget {
   const LoggerScreen({super.key});
 
@@ -18,7 +22,6 @@ class LoggerScreen extends StatefulWidget {
 }
 
 class _LoggerScreenState extends State<LoggerScreen> {
-  final _extractor = ExtractorService();
   final _store = StoreService();
   final _controller = TextEditingController();
   final _recorder = AudioRecorder();
@@ -28,6 +31,13 @@ class _LoggerScreenState extends State<LoggerScreen> {
   bool _isRecording = false;
   String? _error;
   IncidentReport? _lastReport;
+  InferenceRoute? _lastRoute;
+  String? _lastFallback;
+
+  /// The account waiting for the person's choice after an automatic report was not drafted.
+  String? _pending;
+  bool _offerAnyway = false; // Triage said "not active": offer to draft a report anyway
+  bool _offerSaveRaw = false; // no AI report possible: offer to save the account as written
 
   @override
   void initState() {
@@ -47,22 +57,95 @@ class _LoggerScreenState extends State<LoggerScreen> {
     if (mounted) setState(() => _reports = reports);
   }
 
-  Future<void> _extract() async {
-    final text = _controller.text.trim();
+  bool get _sw {
+    final lang = context.read<AppState>().language;
+    return lang == 'sw' || lang == 'sheng';
+  }
+
+  Future<void> _extract({bool anyway = false}) async {
+    final text = (anyway ? _pending : _controller.text.trim()) ?? '';
     if (text.isEmpty) return;
-    setState(() { _isExtracting = true; _error = null; _lastReport = null; });
+    setState(() {
+      _isExtracting = true;
+      _error = null;
+      _lastReport = null;
+      _offerAnyway = false;
+      _offerSaveRaw = false;
+    });
+    final flow = context.read<AppState>().branchFlow;
+    BranchOutcome out;
     try {
-      final report = await _extractor.extract(text, lang: context.read<AppState>().language);
-      if (mounted) {
-        setState(() { _lastReport = report; _isExtracting = false; });
-        _controller.clear();
-        await _loadReports();
-      }
-    } on OutOfCorpusException {
-      if (mounted) setState(() { _isExtracting = false; _error = OutOfCorpusException.userMessage; });
+      out = anyway ? await flow.draft(text) : await flow.run(text);
     } catch (e) {
-      if (mounted) setState(() { _isExtracting = false; _error = e.toString(); });
+      debugPrint('Branch flow failed: $e');
+      out = BranchReport(null, BranchDraftUnavailable(InferenceException('UNKNOWN', '$e')));
     }
+    if (!mounted) return;
+    await _handle(text, out);
+  }
+
+  Future<void> _handle(String text, BranchOutcome out) async {
+    final sw = _sw;
+    switch (out) {
+      case BranchRefused():
+        setState(() {
+          _isExtracting = false;
+          _error = LogText.outOfCorpus;
+        });
+      case BranchNotActive(:final triage):
+        setState(() {
+          _isExtracting = false;
+          _pending = text;
+          _offerAnyway = true;
+          _error = sw
+              ? 'Hii inaonekana kama swali la jumla (${triage.type.wire}), si tukio maalum ulilolishuhudia. Ripoti ni za tukio maalum.'
+              : 'This reads as a general question (${triage.type.wire}), not a specific incident you witnessed. Reports are for specific incidents.';
+        });
+      case BranchTriageFailed():
+      case BranchReport(draft: BranchDraftUnavailable() || BranchDraftMalformed()):
+        setState(() {
+          _isExtracting = false;
+          _pending = text;
+          _offerSaveRaw = true;
+          _error = sw
+              ? 'AI haikuweza kupanga ripoti sasa hivi. Unaweza kuhifadhi maelezo yako kama yalivyo.'
+              : "The AI couldn't structure a report right now. You can save your account as written.";
+        });
+      case BranchReport(draft: BranchDrafted(:final draft, :final route, :final fallbackReason)):
+        final report = IncidentReport.fromJson(draft.toJson(),
+            id: const Uuid().v4(), createdAt: DateTime.now(), rawInput: text);
+        await _store.saveReport(report);
+        if (!mounted) return;
+        _controller.clear();
+        setState(() {
+          _isExtracting = false;
+          _pending = null;
+          _lastReport = report;
+          _lastRoute = route;
+          _lastFallback = fallbackReason;
+        });
+        await _loadReports();
+    }
+  }
+
+  /// No model: keep the person's own words, with every structured field "unknown".
+  Future<void> _saveRaw() async {
+    final text = _pending;
+    if (text == null) return;
+    final report = IncidentReport.fromJson(const {},
+        id: const Uuid().v4(), createdAt: DateTime.now(), rawInput: text);
+    await _store.saveReport(report);
+    if (!mounted) return;
+    _controller.clear();
+    setState(() {
+      _pending = null;
+      _offerSaveRaw = false;
+      _error = null;
+      _lastReport = report;
+      _lastRoute = null;
+      _lastFallback = null;
+    });
+    await _loadReports();
   }
 
   Future<void> _toggleRecording() async {
@@ -70,10 +153,9 @@ class _LoggerScreenState extends State<LoggerScreen> {
       final path = await _recorder.stop();
       setState(() => _isRecording = false);
       if (path != null && mounted) {
-        // For now, show the path — full audio transcription via Gemma 4 audio input
-        // is wired in Phase 4 polish. For now use text fallback.
+        // Voice notes are kept on the phone only; there is no transcription in this build.
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Recording saved — transcription coming in next build')),
+          const SnackBar(content: Text('Voice note saved on this phone. Type the account to create a report.')),
         );
       }
     } else {
@@ -174,7 +256,7 @@ class _LoggerScreenState extends State<LoggerScreen> {
                 Row(children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: _isExtracting ? null : _extract,
+                      onPressed: _isExtracting ? null : () => _extract(),
                       icon: _isExtracting
                           ? const SizedBox(
                               width: 18, height: 18,
@@ -218,8 +300,21 @@ class _LoggerScreenState extends State<LoggerScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(_error!,
+                        key: const Key('log-notice'),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.danger)),
+                          color: _offerAnyway ? AppTheme.onSurface : AppTheme.danger)),
+                  ),
+                if (_offerAnyway || _offerSaveRaw)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: OutlinedButton.icon(
+                      key: Key(_offerAnyway ? 'log-anyway' : 'log-save-raw'),
+                      onPressed: _isExtracting ? null : (_offerAnyway ? () => _extract(anyway: true) : _saveRaw),
+                      icon: Icon(_offerAnyway ? Icons.assignment_add : Icons.save_outlined, size: 18),
+                      label: Text(_offerAnyway
+                          ? (lang == 'sw' ? 'Unda ripoti hata hivyo' : 'Create a report anyway')
+                          : (lang == 'sw' ? 'Hifadhi kama ilivyoandikwa' : 'Save as written')),
+                    ),
                   ),
               ],
             ),
@@ -227,7 +322,7 @@ class _LoggerScreenState extends State<LoggerScreen> {
 
           // Last extracted report preview
           if (_lastReport != null)
-            _ReportPreview(report: _lastReport!, lang: lang),
+            _ReportPreview(report: _lastReport!, lang: lang, route: _lastRoute, fallbackReason: _lastFallback),
 
           // Saved reports list
           Expanded(
@@ -267,7 +362,9 @@ class _LoggerScreenState extends State<LoggerScreen> {
 class _ReportPreview extends StatelessWidget {
   final IncidentReport report;
   final String lang;
-  const _ReportPreview({required this.report, required this.lang});
+  final InferenceRoute? route;
+  final String? fallbackReason;
+  const _ReportPreview({required this.report, required this.lang, this.route, this.fallbackReason});
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +388,10 @@ class _ReportPreview extends StatelessWidget {
                 color: AppTheme.safe),
             ),
           ]),
+          if (route != null) ...[
+            const SizedBox(height: 8),
+            RouteBadge(route: route!, fallbackReason: fallbackReason, lang: lang),
+          ],
           const SizedBox(height: 10),
           _row(context, '👤', lang == 'sw' ? 'Nani' : 'Who', report.who),
           _row(context, '📍', lang == 'sw' ? 'Wapi' : 'Where', report.where),
@@ -299,8 +400,8 @@ class _ReportPreview extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             lang == 'sw'
-                ? '⏳ Ipo kwenye foleni ya kutumwa — itapelekwa unapopata mtandao'
-                : '⏳ Queued for send — will be transmitted when network returns',
+                ? 'Imehifadhiwa kwenye simu hii tu. Haitumwi popote.'
+                : 'Saved on this phone only. Nothing is sent anywhere.',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: AppTheme.onSurfaceDim, fontStyle: FontStyle.italic),
           ),
@@ -366,8 +467,8 @@ class _ReportCard extends StatelessWidget {
               ),
               child: Text(
                 lang == 'sw'
-                    ? '⏳ Inasubiri kutumwa'
-                    : '⏳ Pending send',
+                    ? 'Kwenye simu hii'
+                    : 'On this phone',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: AppTheme.primary),
               ),
@@ -377,4 +478,13 @@ class _ReportCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Fixed Log-tab text.
+abstract final class LogText {
+  static const outOfCorpus =
+      "This doesn't match anything in Niko Rada's verified library, so it was not processed. "
+      'If someone is in danger, contact a lawyer, medic or trusted organisation now.\n\n'
+      'Hii hailingani na chochote katika maktaba ya Niko Rada, kwa hivyo haikushughulikiwa. '
+      'Ikiwa mtu yuko hatarini, wasiliana na wakili, mhudumu wa afya au shirika unaloliamini sasa.';
 }

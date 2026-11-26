@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Judge build only (NIKO_RADA_JUDGE_BUILD=true): merged over the release manifest so the APK is debuggable and the
+     App Check debug provider accepts the built-in debug token. Set here, not via buildType.isDebuggable, because the
+     Flutter Gradle plugin would then compile Dart in debug (JIT) mode instead of release (AOT). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:debuggable="true"
+        tools:ignore="HardcodedDebugMode"
+        tools:replace="android:debuggable" />
+</manifest>

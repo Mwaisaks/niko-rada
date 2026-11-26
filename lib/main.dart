@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_state.dart';
 import 'theme/app_theme.dart';
-import 'ui/download_screen.dart';
 import 'ui/panic_grid.dart';
 import 'ui/chat_screen.dart';
 import 'ui/logger_screen.dart';
@@ -42,13 +41,6 @@ class _Root extends StatelessWidget {
     // Show splash while initialising
     if (!state.initialised) {
       return const _SplashScreen();
-    }
-
-    // Show download screen if model not ready
-    if (!state.modelReady) {
-      return DownloadScreen(
-        onComplete: () => state.setModelReady(true),
-      );
     }
 
     return const _MainShell();
