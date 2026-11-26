@@ -57,10 +57,11 @@ Scope, in priority order:
        Progress 26 Nov: the app's answer screen now runs `AnswerFlow` on `HybridInferenceService` (via `AppState`);
        the model-download gate is gone from `main.dart`. The incident logger still uses the old Gemma extractor until
        Branch replaces it.
-2. [ ] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
-       behind the same out-of-corpus gate as Guide.
+2. [x] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
+       behind the same out-of-corpus gate as Guide. (26 Nov: `lib/agent/branch.dart`, Log tab; `test/branch_test.dart`.)
 3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
-4. [ ] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
+4. [x] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
+       (26 Nov, `feat/remove-gemma`: all Gemma code, the HYBRID_AI flag and the arm64-only ABI filter removed.)
 
 Prompt budget (Nano limits):
 - Keep each on-device request under ~4,000 tokens; aim for replies under 256 tokens (`maxOutputTokens`).
