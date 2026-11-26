@@ -100,7 +100,8 @@ Language design (to test on the borrowed phone):
 ## Phase 5 — Sat 28 Nov: submission assets
 - [ ] README: value proposition, architecture diagram, where Firebase AI Logic is called, setup/run steps, license, limitations.
 - [ ] "What we built during the window" summary (diff against `c745a39`, honest).
-- [ ] Re-verify every statistic against its primary source before using it.
+- [x] Statistics verified by the owner (26 Nov). Remaining: fill in each source link in the README Sources table
+      (`docs/README_PLAN.md`).
 - [ ] Devpost text: Firebase AI Logic usage, features, value proposition.
 - [ ] Demo video script (≤ 3:00): problem (20s) → airplane mode, on-device answer (45s) → budget phone online, cloud with
       consent (45s) → safety/escalation (30s) → architecture + impact + honest limitation (30s). Filmed on real phones.
@@ -111,6 +112,8 @@ Language design (to test on the borrowed phone):
 - [ ] Submit on Devpost with **Android** selected, by evening EAT. Monday is buffer only.
 
 ## Out of scope
+- **iOS** (Apple Foundation Models via Firebase AI Logic): out of scope for this build; listed as future work in the README.
+  Do not work on it. (Owner, 26 Nov.)
 HackSocial, mesh relay, Briar handoff, LSK / Missing Voices sync, Sheng native review.
 
 ## Decision log

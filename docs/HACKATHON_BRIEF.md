@@ -27,7 +27,21 @@ back to the cloud when it isn't. Open to new projects and significantly updated 
 | Best Web/Chrome App | $3,000 | Social mention |
 
 Our target: **Best Android App** as the floor; Grand / 1st / 2nd as stretch.
-Open question (check Rules): whether one project can win both an overall prize and a platform prize.
+One submission can win **one Grand Prize-tier prize and up to one "Best of" prize** (see Official rules below).
+
+## Official rules (owner's reading of the Rules page, 26 Nov 2026)
+- **Prizes:** a submission can win one Grand Prize and up to one "Best of" prize (e.g. a runner-up prize plus Best
+  Android App).
+- **Judges may judge from the text description and video alone.** They might never install the APK, so the video and
+  Devpost text have to show everything that matters (on-device route, cloud fallback, consent, limited mode).
+- **Ties** are broken by the judging criteria in the order listed, **Technological Implementation first**.
+- **Judging period: 10–16 Dec 2026; winners announced around 21 Dec.** The test build, the Firebase project and any
+  App Check debug token must keep working **until at least 16 Dec**. Do not delete the debug token, disable the API, or
+  let quota/billing lapse before then.
+- **No production API keys, live project secrets or PII** in the repo, the submission form, or the testing
+  instructions. Judges set up their own Firebase project from `google-services.json.example` (see `docs/README_PLAN.md`);
+  the APK's own Firebase config is restricted to our package name and signing certificate.
+- **Commits after the deadline are not evaluated.** Tag the submitted commit; anything pushed later does not count.
 
 ## Judging criteria (the four things to tailor everything to)
 1. **Technological Implementation** — how well it is built and how effectively it uses Firebase AI Logic hybrid inference.
@@ -54,4 +68,7 @@ Open question (check Rules): whether one project can win both an overall prize a
 - [ ] Description covers: Firebase AI Logic usage, features, value proposition
 - [ ] Demo video ≤ 3:00 on YouTube (public), English
 - [ ] APK release link tested from a clean device
+- [ ] No production keys, secrets, tokens or PII in the repo, Devpost form or testing instructions
+- [ ] Test build + App Check debug token + Firebase project stay valid until at least 16 Dec 2026
+- [ ] Submitted commit tagged (later commits are not evaluated)
 - [ ] Submitted at least 6 hours before the deadline
