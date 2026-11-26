@@ -9,6 +9,30 @@ val appCheckDebugToken: String = System.getenv("NIKO_RADA_APP_CHECK_DEBUG_TOKEN"
     }
     ?: ""
 
+// Values from env first, then android/local.properties (gitignored). Passwords are read from the environment ONLY,
+// never from a file.
+val localProps: Properties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun setting(env: String, prop: String): String? = System.getenv(env) ?: localProps.getProperty(prop)
+
+// Release signing: one dedicated keystore kept OUTSIDE the repo.
+//   NIKO_RADA_KEYSTORE_PATH  or nikoRada.keystorePath   (absolute path)
+//   NIKO_RADA_KEY_ALIAS      or nikoRada.keyAlias
+//   NIKO_RADA_KEYSTORE_PASSWORD, NIKO_RADA_KEY_PASSWORD  (environment only)
+// If any is missing, release builds fall back to the debug keystore (with a warning).
+val releaseKeystorePath: String? = setting("NIKO_RADA_KEYSTORE_PATH", "nikoRada.keystorePath")
+val releaseKeyAlias: String? = setting("NIKO_RADA_KEY_ALIAS", "nikoRada.keyAlias")
+val releaseStorePassword: String? = System.getenv("NIKO_RADA_KEYSTORE_PASSWORD")
+val releaseKeyPassword: String? = System.getenv("NIKO_RADA_KEY_PASSWORD") ?: releaseStorePassword
+val hasReleaseKeystore = listOf(releaseKeystorePath, releaseKeyAlias, releaseStorePassword).all { !it.isNullOrBlank() } &&
+    file(releaseKeystorePath!!).exists()
+
+// Judge build: a release-mode (AOT, small) APK that is still debuggable, so the App Check debug provider accepts the
+// built-in debug token (it reads the token only in debuggable apps). For hackathon judging only; never for real users.
+//   NIKO_RADA_JUDGE_BUILD=true flutter build apk --release --target-platform android-arm64
+val judgeBuild: Boolean = setting("NIKO_RADA_JUDGE_BUILD", "nikoRada.judgeBuild")?.toBoolean() ?: false
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -41,15 +65,33 @@ android {
         resValues = true
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Empty unless a token is supplied (see top of file); empty means the SDK generates one and logs it.
             resValue("string", "firebase_app_check_debug_token", appCheckDebugToken)
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                logger.warn("niko_rada: release keystore not configured; signing release with the debug keystore.")
+                signingConfig = signingConfigs.getByName("debug")
+            }
+            if (judgeBuild) {
+                isDebuggable = true
+                resValue("string", "firebase_app_check_debug_token", appCheckDebugToken)
+            }
         }
     }
 }

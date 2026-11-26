@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The App Check debug provider looks this string up by name at runtime; stop the resource shrinker removing it
+     from judge builds (release mode, debuggable). The value itself is set at build time and never committed. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/firebase_app_check_debug_token" />

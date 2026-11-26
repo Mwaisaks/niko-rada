@@ -24,8 +24,8 @@ rename only; do not use it).
   keystores, or App Check debug tokens. `android/app/google-services.json` is gitignored. Check `.gitignore` and git
   history before every push.
 - No real user data, real survivor/victim details or real phone numbers in code, fixtures or the demo. Synthetic data only.
-- Do not claim usage numbers, partnerships or outcomes that do not exist. Statistics in the docs come from the owner's notes:
-  re-verify each against its source before it goes into the README or Devpost text.
+- Do not claim usage numbers, partnerships or outcomes that do not exist. The statistics in the docs are verified by the
+  owner (26 Nov); each one is linked to its source in the README (Sources table in `docs/README_PLAN.md`).
 - Stay inside this repo.
 
 ## Engineering rules
