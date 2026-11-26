@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import 'response_screen.dart';
+import 'route_status.dart';
 
 /// F1 — Free-text grounded chat screen.
 class ChatScreen extends StatefulWidget {
@@ -62,23 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Offline badge
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            color: AppTheme.safe.withValues(alpha: 0.12),
-            child: Row(children: [
-              const Icon(Icons.wifi_off_rounded, size: 14, color: AppTheme.safe),
-              const SizedBox(width: 6),
-              Text(
-                lang == 'sw'
-                    ? 'Majibu yote yanafanywa kwenye simu — bila mtandao'
-                    : 'All answers generated on-device — no network',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppTheme.safe),
-              ),
-            ]),
-          ),
+          const RouteStatusStrip(),
           // Suggested queries
           if (_messages.isEmpty)
             Expanded(child: _buildSuggestions(lang))

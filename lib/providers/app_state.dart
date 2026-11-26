@@ -1,26 +1,69 @@
-import 'package:flutter/material.dart';
-import '../services/gemma_service.dart';
+import 'package:flutter/foundation.dart';
+import '../agent/answer_flow.dart';
+import '../inference/cloud_consent.dart';
+import '../inference/hybrid_inference_channel.dart';
+import '../inference/hybrid_inference_service.dart';
+import '../inference/inference_service.dart';
+import '../services/rag.dart';
 import '../services/store.dart';
 
-/// Global app state — language preference, model ready state.
+/// Global app state: language, cloud consent, and the current inference routes.
+///
+/// Owns the single [InferenceService] (Firebase AI Logic hybrid inference through the Kotlin bridge) and the
+/// [AnswerFlow] built on it. Nothing else in the app creates a model client.
 class AppState extends ChangeNotifier {
+  AppState({CloudConsentStore? consent, InferenceService? inference, HybridInferenceChannel? channel})
+      : consent = consent ?? CloudConsentStore(),
+        _channel = channel ?? HybridInferenceChannel() {
+    this.inference = inference ?? HybridInferenceService(consent: this.consent, channel: _channel);
+    answerFlow = AnswerFlow(this.inference, RagService());
+    this.consent.addListener(_onConsentChanged);
+  }
+
   final _store = StoreService();
-  final _gemma = GemmaService();
+  final CloudConsentStore consent;
+  final HybridInferenceChannel _channel;
+  late final InferenceService inference;
+  late final AnswerFlow answerFlow;
 
   String _language = 'en';
-  bool _modelReady = false;
   bool _initialised = false;
+  InferenceAvailability? _availability;
+  bool _downloadStarted = false;
 
   String get language => _language;
-  bool get modelReady => _modelReady;
   bool get initialised => _initialised;
+
+  /// Last known routes; null until the first check finishes.
+  InferenceAvailability? get availability => _availability;
 
   Future<void> init() async {
     _language = await _store.getLanguage();
-    await _gemma.initialize();
-    _modelReady = _gemma.isModelReady;
+    await consent.load();
+    await RagService().loadCards();
     _initialised = true;
     notifyListeners();
+    await refreshAvailability();
+  }
+
+  /// Re-reads connectivity and the on-device model status (no model call). Cheap; call on screen entry and retry.
+  Future<InferenceAvailability> refreshAvailability() async {
+    final a = await inference.availability();
+    _availability = a;
+    notifyListeners();
+    _maybeStartDownload(a);
+    return a;
+  }
+
+  /// On a supported phone the model may be DOWNLOADABLE; ask AICore to fetch it once per launch. The result of the
+  /// download is never trusted (on the Galaxy A16 it reported "completed" while the status stayed UNAVAILABLE):
+  /// availability is re-read from checkStatus() afterwards.
+  void _maybeStartDownload(InferenceAvailability a) {
+    if (_downloadStarted || a.error != null || a.onDeviceStatus != 'DOWNLOADABLE') return;
+    _downloadStarted = true;
+    _channel
+        .downloadOnDeviceModel(cloudModel: HybridInferenceService.defaultCloudModel)
+        .then((_) => refreshAvailability(), onError: (Object e) => debugPrint('On-device download failed: $e'));
   }
 
   Future<void> setLanguage(String lang) async {
@@ -29,8 +72,24 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setModelReady(bool ready) {
-    _modelReady = ready;
+  void _onConsentChanged() {
+    // Availability carries the consent flag; refresh it so the UI shows the new route immediately.
+    final a = _availability;
+    if (a != null) {
+      _availability = InferenceAvailability(
+        online: a.online,
+        onDeviceReady: a.onDeviceReady,
+        onDeviceStatus: a.onDeviceStatus,
+        cloudConsent: consent.granted,
+        error: a.error,
+      );
+    }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    consent.removeListener(_onConsentChanged);
+    super.dispose();
   }
 }
