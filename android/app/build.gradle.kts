@@ -28,7 +28,7 @@ val releaseKeyPassword: String? = System.getenv("NIKO_RADA_KEY_PASSWORD") ?: rel
 val hasReleaseKeystore = listOf(releaseKeystorePath, releaseKeyAlias, releaseStorePassword).all { !it.isNullOrBlank() } &&
     file(releaseKeystorePath!!).exists()
 
-// Judge build: a release-mode (AOT, small) APK that is still debuggable, so the App Check debug provider accepts the
+// Judge build: a release-mode (AOT, small) APK that is still debuggable (manifest overlay), so the App Check debug provider accepts the
 // built-in debug token (it reads the token only in debuggable apps). For hackathon judging only; never for real users.
 //   NIKO_RADA_JUDGE_BUILD=true flutter build apk --release --target-platform android-arm64
 val judgeBuild: Boolean = setting("NIKO_RADA_JUDGE_BUILD", "nikoRada.judgeBuild")?.toBoolean() ?: false
@@ -87,10 +87,14 @@ android {
                 signingConfig = signingConfigs.getByName("debug")
             }
             if (judgeBuild) {
-                isDebuggable = true
+                // Debuggable via src/judge/AndroidManifest.xml, not isDebuggable (that switches Flutter to JIT).
                 resValue("string", "firebase_app_check_debug_token", appCheckDebugToken)
             }
         }
+    }
+
+    if (judgeBuild) {
+        sourceSets.getByName("release").manifest.srcFile("src/judge/AndroidManifest.xml")
     }
 }
 
