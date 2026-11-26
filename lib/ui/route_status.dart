@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../config/feature_flags.dart';
 import '../inference/inference_service.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
@@ -56,7 +55,6 @@ class RouteStatusStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!kHybridAi) return const SizedBox.shrink();
     final state = context.watch<AppState>();
     final s = RouteStatusText.of(state.availability, state.language);
     return Material(

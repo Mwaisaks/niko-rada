@@ -4,7 +4,7 @@ import '../services/rag.dart';
 
 /// Step 3 of the agent loop: grounded, cited next steps from the top retrieved cards.
 ///
-/// Ported from `Prompts.groundedAnswer` / notebook `grounded_answer_prompt`, adapted for on-device limits:
+/// Ported from the pre-window grounded-answer prompt / notebook `grounded_answer_prompt`, adapted for on-device limits:
 /// - The out-of-corpus gate runs first ([retrieve] returns nothing → [GuideRefused], no model call).
 /// - Only the top [maxCards] cards go into the prompt; each is cut to [maxCardChars].
 /// - One single-turn call per run; no chat session, no history.

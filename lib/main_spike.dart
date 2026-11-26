@@ -1,5 +1,4 @@
-// Phase 0 spike entrypoint. Runs only the hybrid-inference debug screen, bypassing the old Gemma
-// model-download gate in main.dart.
+// Phase 0 spike entrypoint. Runs only the hybrid-inference debug screen.
 //   flutter run -t lib/main_spike.dart
 //   flutter build apk --debug -t lib/main_spike.dart --target-platform android-arm64
 import 'package:flutter/material.dart';

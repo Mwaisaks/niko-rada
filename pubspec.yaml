@@ -1,5 +1,5 @@
 name: niko_rada
-description: "Offline safety companion for when the network goes dark. On-device Gemma 4, no data leaves the phone."
+description: "Crisis-safety guide for Kenya: grounded, cited answers through Firebase AI Logic hybrid inference (Gemini Nano on-device, cloud with consent)."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -10,9 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # --- On-device AI ---
-  flutter_gemma: ^1.3.1          # core (no engine on its own)
-  flutter_gemma_litertlm: ^1.1.0 # .litertlm engine for Android + Linux desktop
+  # AI: Firebase AI Logic hybrid inference, native Android (android/app/build.gradle.kts), called over a
+  # MethodChannel from lib/inference/. No Dart model package.
 
   # --- Local storage ---
   drift: ^2.26.0

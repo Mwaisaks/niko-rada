@@ -52,13 +52,11 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.nikorada.niko_rada"
-        // 26+: required by firebase-ai-ondevice (and by flutter_gemma .litertlm until Phase 1 removes it)
+        // 26+: required by firebase-ai-ondevice
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // .litertlm FFI engine only ships arm64-v8a prebuilt
-        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     buildFeatures {
