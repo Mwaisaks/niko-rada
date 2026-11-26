@@ -54,7 +54,9 @@ Scope, in priority order:
        wires the interface to the Kotlin bridge with consent-aware mode resolution and an `availability()` pre-flight;
        cloud consent model (`lib/inference/cloud_consent.dart`, default off, revocable); Guide ported
        (`lib/agent/guide.dart`); limited mode + answer flow (`lib/agent/answer_flow.dart`); Triage `arrest` type.
-       Existing app (flutter_gemma path) unchanged.
+       Progress 26 Nov: the app's answer screen now runs `AnswerFlow` on `HybridInferenceService` (via `AppState`);
+       the model-download gate is gone from `main.dart`. The incident logger still uses the old Gemma extractor until
+       Branch replaces it.
 2. [ ] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
        behind the same out-of-corpus gate as Guide.
 3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
@@ -73,10 +75,12 @@ Language design (to test on the borrowed phone):
   demoable on-device and in cloud.
 
 ## Phase 2 — Wed 25 Nov: hybrid behaviour and UX
-- [ ] Routing rules (default on-device; cloud only with consent; offline → on-device only; no Nano + no consent → limited mode)
+- [x] Routing rules (default on-device; cloud only with consent; offline → on-device only; no Nano + no consent → limited mode)
       with unit tests (supported / unsupported / offline / cloud error / consent denied).
-- [ ] Route badge + fallback reason in the UI; clear offline state and "no on-device model" state.
-- [ ] Consent screen for cloud use of crisis content; revocable in Settings.
+- [x] Route badge + fallback reason in the UI; clear offline state and "no on-device model" state.
+      (26 Nov: `RouteStatusStrip` on Actions/Ask/answer screens, `RouteBadge` per answer, limited-mode banner.)
+- [x] Consent screen for cloud use of crisis content; revocable in Settings.
+      (26 Nov: `lib/ui/consent_sheet.dart`, opened from the status strip, the limited-mode banner or Settings.)
 - Acceptance: toggling airplane mode visibly changes behaviour, no crashes.
 
 ## Phase 3 — Thu 26 Nov: safety, design, Firebase extras
@@ -159,6 +163,13 @@ Friends are testing the spike APK on their phones. For each report:
 - `UNAVAILABLE` after AICore updates and a download attempt → **that phone is unsupported** (not a verdict on Android).
 - No usable report by Thu 26 Nov 09:00 EAT → **decide together with the owner**.
 Nothing merges into `main` from `feat/phase1-core` until this is decided.
+
+### 2026-11-26 — Platform stays Android; on-device still unproven. Confirmed by owner.
+- No friend's phone has reported on-device `AVAILABLE` with an "answered by: ON DEVICE" reply.
+- Decision: keep building Android (all remaining work is Dart/UI). Keep looking for a Nano-capable phone until the
+  scope freeze (end of Fri 27 Nov). If none is found, the demo shows cloud + limited mode, and the video and Devpost text
+  say plainly that on-device inference was not filmed on a supported phone.
+- `feat/phase1-core` may now merge into `main`.
 
 ## Open risks (from Phase 0 research; unconfirmed)
 1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design
