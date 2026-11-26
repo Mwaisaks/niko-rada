@@ -37,7 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Navigate to response screen for streaming
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ResponseScreen(
+      builder: (_) => answerScreen(
         query: text,
         title: lang == 'sw' ? 'Jibu' : 'Response',
         lang: lang,

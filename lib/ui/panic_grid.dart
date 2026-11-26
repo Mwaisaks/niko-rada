@@ -213,7 +213,7 @@ class _PanicButtonState extends State<_PanicButton>
     await _ctrl.reverse();
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ResponseScreen(
+      builder: (_) => answerScreen(
         query: widget.action.query,
         title: widget.action.label,
         lang: widget.action.lang,

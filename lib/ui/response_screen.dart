@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../agent/answer_flow.dart';
+import '../config/feature_flags.dart';
 import '../models/knowledge_card.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import 'consent_sheet.dart';
+import 'legacy_response_screen.dart';
 import 'route_status.dart';
+
+/// The answer screen for [query]: hybrid [ResponseScreen], or the legacy Gemma screen when built with HYBRID_AI=false.
+Widget answerScreen({required String query, required String title, required String lang}) => kHybridAi
+    ? ResponseScreen(query: query, title: title, lang: lang)
+    : LegacyResponseScreen(query: query, title: title, lang: lang);
 
 /// Answer screen for panic buttons and typed questions.
 ///
