@@ -59,7 +59,7 @@ Scope, in priority order:
        Branch replaces it.
 2. [x] **Branch:** when Triage says `is_active_incident`, extract the structured who/what/where report automatically,
        behind the same out-of-corpus gate as Guide. (26 Nov: `lib/agent/branch.dart`, Log tab; `test/branch_test.dart`.)
-3. [ ] **Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT): only if time remains after the Phase 2 routing and UI work.
+3. [ ] ~~**Plan** (DO NOW / WHO TO CONTACT / WHAT TO DOCUMENT)~~ **Cut** by the owner (27 Nov).
 4. [x] Remove `flutter_gemma` / `flutter_gemma_litertlm` and the model-download screen from the runtime path.
        (26 Nov, `feat/remove-gemma`: all Gemma code, the HYBRID_AI flag and the arm64-only ABI filter removed.)
 
@@ -95,8 +95,8 @@ Language design (to test on the borrowed phone):
       Include a row for **on-device Kiswahili/Sheng output quality** (Nano phone, airplane mode).
       Log results in `docs/TEST_MATRIX.md`.
 - [ ] Release APK built and installed from a clean state on both phones.
-- [ ] **Feature freeze at end of day.**
-- [ ] Only if time remains: PIN-gate + panic-wipe.
+- [ ] **Feature freeze at end of Sat 28 Nov** (moved from Fri 27 Nov by the owner).
+- [ ] ~~PIN-gate + panic-wipe~~ **Cut** by the owner (27 Nov).
 
 ## Phase 5 — Sat 28 Nov: submission assets
 - [ ] README: value proposition, architecture diagram, where Firebase AI Logic is called, setup/run steps, license, limitations.
@@ -174,6 +174,17 @@ Nothing merges into `main` from `feat/phase1-core` until this is decided.
   scope freeze (end of Fri 27 Nov). If none is found, the demo shows cloud + limited mode, and the video and Devpost text
   say plainly that on-device inference was not filmed on a supported phone.
 - `feat/phase1-core` may now merge into `main`.
+
+### 2026-11-27 — Two more phones UNAVAILABLE; scope freeze moved to end of Sat 28 Nov. Reported/confirmed by owner.
+- Galaxy S24 Ultra (SM-S928U) and Galaxy S22 Ultra (SM-S908U1): `UNAVAILABLE` after download attempts, consistent with
+  neither being on the live ML Kit device list. No Nano phone is confirmed. Details: `docs/RESEARCH_HYBRID_ANDROID.md` (f).
+- Android vs Web: **decision at 12:00 EAT today**, after the Chrome laptop test (`docs/CHROME_PROMPT_API_TEST.md`) and,
+  if possible, a streamed Pixel 9 (`docs/PIXEL9_STREAMING_TEST.md`). The web option is a plain-JS companion on its own
+  branch (`docs/WEB_COMPANION_PLAN.md`); not started until the owner says "go". It must not touch the Android code.
+- The owner moved the scope freeze for the Android app back one day, to the **end of Sat 28 Nov** (deadline is
+  Mon 30 Nov 2:00pm PST). Plan (agent step) and PIN-gate/panic-wipe are cut.
+- Today's order: safety (output checks, prompt-injection tests) → design pass on the answer screen → release APK → test
+  matrix.
 
 ## Open risks (from Phase 0 research; unconfirmed)
 1. **On-device Kiswahili/Sheng quality.** Google validates only English and Korean on-device. Mitigation: language design

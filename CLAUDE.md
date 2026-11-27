@@ -63,7 +63,8 @@ rename only; do not use it).
 - Small, focused commits with plain descriptive messages. Tick checkboxes in `docs/PLAN.md` as you go.
 - When a decision is mine (platform, cutting scope), give 2–3 options with a recommendation and wait.
 - If docs contradict the repo, trust the repo and fix the docs.
-- Scope freeze: end of Fri 27 Nov. After that: bug fixes, docs, README, video, submission only.
+- Scope freeze (Android app): end of Sat 28 Nov (moved from Fri 27 Nov by the owner). After that: bug fixes, docs, README,
+  video, submission only.
 
 ## Definition of done
 - Real Gemini Nano on-device inference on a supported physical Android phone AND real cloud fallback, both demonstrable.

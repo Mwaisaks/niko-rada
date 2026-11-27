@@ -129,8 +129,18 @@ Findings:
   What the app does then: `docs/LIMITED_MODE.md` (proposal).
 - Still untested: on-device on a Nano-capable phone, `ONLY_ON_DEVICE` / `ONLY_IN_CLOUD` / `PREFER_IN_CLOUD` modes.
 
-### Phone 2 — Nano-capable phone
-Not yet tested.
+### Phones 2 and 3 — friends' Samsung flagships, US variants (reported by owner, 27 Nov 2026)
+| Phone | Model code | `checkStatus()` after download attempts |
+|---|---|---|
+| Galaxy S24 Ultra | SM-S928U | **`UNAVAILABLE`** |
+| Galaxy S22 Ultra | SM-S908U1 | **`UNAVAILABLE`** |
+
+- Both results match the live ML Kit GenAI device list read on 26 Nov (`docs/RESEARCH_REMOTE_AND_WEB.md`), which lists
+  neither the Galaxy S24 nor the S22 for the Prompt API (Samsung starts at the S25, under Gemini Nano 4). Being a flagship
+  is not enough; only listed devices get the on-device model through this API.
+- Download attempts did not change the status (same as the A16: trust `checkStatus()`, not the download result).
+- **No Nano-capable phone is confirmed as of 27 Nov.** Next candidates: a streamed Pixel 9 in Android Studio
+  (`docs/PIXEL9_STREAMING_TEST.md`) and Chrome on the owner's laptop (`docs/CHROME_PROMPT_API_TEST.md`).
 
 ## Could not confirm
 - Exact behaviour of `PREFER_ON_DEVICE` / `ONLY_ON_DEVICE` when **offline** on an unsupported phone (expected: error;
