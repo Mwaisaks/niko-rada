@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../agent/answer_flow.dart';
+import '../models/contact_lines.dart';
 import '../models/knowledge_card.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
@@ -85,6 +87,8 @@ class _ResponseScreenState extends State<ResponseScreen> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
             children: [
               _QueryEcho(text: widget.query),
+              const SizedBox(height: 12),
+              _EmergencyQuickCall(lang: widget.lang),
               const SizedBox(height: 16),
               if (_busy || out == null) _Thinking(lang: widget.lang) else ..._outcomeWidgets(out),
             ],
@@ -181,7 +185,8 @@ class _Thinking extends StatelessWidget {
       ]);
 }
 
-/// The validated model text. Citations `[card-id]` are shown as `[1]`, `[2]` matching the Sources list.
+/// The validated model text, one row per numbered step. Citations `[card-id]` are shown as `[1]`, `[2]` matching the
+/// Sources list.
 class _GuidedText extends StatelessWidget {
   const _GuidedText({required this.text, required this.cards});
   final String text;
@@ -195,12 +200,54 @@ class _GuidedText extends StatelessWidget {
     return t;
   }
 
+  static final _stepRe = RegExp(r'^\s*(\d+)[.)]\s+(.*)$');
+  static final _refsRe = RegExp(r'(\s*\[\d+\])+\s*$');
+
   @override
-  Widget build(BuildContext context) => SelectableText(
-        displayText(text, cards),
-        key: const Key('guided-text'),
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
-      );
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final rows = <Widget>[];
+    for (final line in displayText(text, cards).split('\n')) {
+      final m = _stepRe.firstMatch(line);
+      if (m == null) continue;
+      final body = m.group(2)!;
+      final refs = _refsRe.firstMatch(body)?.group(0)?.trim() ?? '';
+      final sentence = body.substring(0, body.length - (_refsRe.firstMatch(body)?.group(0)?.length ?? 0)).trim();
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.16), shape: BoxShape.circle),
+            child: Text(m.group(1)!,
+                style: t.labelLarge?.copyWith(color: AppTheme.primary, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: sentence),
+                  if (refs.isNotEmpty)
+                    TextSpan(
+                        text: ' $refs',
+                        style: t.bodySmall?.copyWith(color: AppTheme.primary, fontWeight: FontWeight.w700)),
+                ]),
+                style: t.bodyLarge?.copyWith(height: 1.45, color: AppTheme.onBackground),
+              ),
+            ),
+          ),
+        ]),
+      ));
+    }
+    return Semantics(
+      container: true,
+      child: Column(key: const Key('guided-text'), crossAxisAlignment: CrossAxisAlignment.start, children: rows),
+    );
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -318,7 +365,87 @@ class _VerifiedCard extends StatelessWidget {
   }
 }
 
-/// Verified contacts from the corpus. The only place phone numbers appear.
+/// Opens the phone's dialer with a verified number (no call is placed without the person pressing call).
+Future<void> _dial(BuildContext context, String number, String lang) async {
+  final ok = await launchUrl(Uri(scheme: 'tel', path: ContactLines.dialString(number))).catchError((_) => false);
+  if (!ok && context.mounted) {
+    final sw = lang == 'sw' || lang == 'sheng';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(sw ? 'Haikuweza kufungua simu. Piga $number' : "Couldn't open the dialer. Dial $number"),
+    ));
+  }
+}
+
+/// One verified number as a large, tappable call button.
+class _CallButton extends StatelessWidget {
+  const _CallButton({required this.number, required this.lang, this.prominent = false});
+  final String number;
+  final String lang;
+  final bool prominent;
+
+  @override
+  Widget build(BuildContext context) {
+    final sw = lang == 'sw' || lang == 'sheng';
+    final label = Text(number, style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3));
+    final style = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14)),
+      backgroundColor: WidgetStatePropertyAll(prominent ? AppTheme.danger : AppTheme.danger.withValues(alpha: 0.18)),
+      foregroundColor: WidgetStatePropertyAll(prominent ? Colors.white : AppTheme.onBackground),
+      shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+    );
+    return Semantics(
+      button: true,
+      label: sw ? 'Piga $number' : 'Call $number',
+      excludeSemantics: true,
+      child: FilledButton.icon(
+        key: Key('call-$number'),
+        style: style,
+        onPressed: () => _dial(context, number, lang),
+        icon: const Icon(Icons.call_rounded, size: 18),
+        label: label,
+      ),
+    );
+  }
+}
+
+/// The first line of the verified emergency contacts card (999 / 112) as call buttons, near the top of every answer.
+class _EmergencyQuickCall extends StatelessWidget {
+  const _EmergencyQuickCall({required this.lang});
+  final String lang;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = context.read<AppState>().answerFlow.contactsFor(const []).firstOrNull;
+    if (card == null) return const SizedBox.shrink();
+    final calls = ContactLines.parse(card.content(lang)).calls;
+    if (calls.isEmpty) return const SizedBox.shrink();
+    final first = calls.first;
+    final t = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('emergency-quick-call'),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: AppTheme.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Text(first.label,
+              style: t.bodyMedium?.copyWith(color: AppTheme.onBackground, fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(width: 8),
+        for (final (i, n) in first.numbers.indexed) ...[
+          if (i > 0) const SizedBox(width: 8),
+          _CallButton(number: n, lang: lang, prominent: true),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Verified contacts from the corpus. The only place phone numbers appear; each number is a call button.
 class _ContactsSection extends StatelessWidget {
   const _ContactsSection({required this.contacts, required this.lang});
   final List<KnowledgeCard> contacts;
@@ -332,24 +459,55 @@ class _ContactsSection extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _SectionLabel(sw ? 'Msaada uliothibitishwa' : 'Verified help'),
       for (final c in contacts)
-        Container(
-          key: Key('contacts-${c.id}'),
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.danger.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(c.title(lang), style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            SelectableText(c.content(lang), style: t.bodyMedium?.copyWith(height: 1.55)),
-            const SizedBox(height: 6),
-            Text(c.source, style: t.bodySmall?.copyWith(color: AppTheme.onSurfaceDim)),
-          ]),
-        ),
+        Builder(builder: (context) {
+          final lines = ContactLines.parse(c.content(lang));
+          return Container(
+            key: Key('contacts-${c.id}'),
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.verified_outlined, size: 16, color: AppTheme.safe),
+                const SizedBox(width: 6),
+                Expanded(child: Text(c.title(lang), style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700))),
+              ]),
+              for (final l in lines.calls) ...[
+                SizedBox(height: l.continued ? 8 : 14),
+                Text(l.label,
+                    style: l.continued
+                        ? t.bodySmall?.copyWith(color: AppTheme.onSurfaceDim)
+                        : t.bodyMedium?.copyWith(color: AppTheme.onBackground, fontWeight: FontWeight.w600)),
+                if (l.detail != null)
+                  Text(l.detail!, style: t.bodySmall?.copyWith(color: AppTheme.onSurfaceDim)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final n in l.numbers) _CallButton(number: n, lang: lang),
+                ]),
+              ],
+              if (lines.texts.isNotEmpty) const SizedBox(height: 14),
+              for (final tl in lines.texts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text.rich(
+                    TextSpan(children: [
+                      if (tl.label != null)
+                        TextSpan(text: '${tl.label}: ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      TextSpan(text: tl.text),
+                    ]),
+                    style: t.bodySmall?.copyWith(color: AppTheme.onSurface, height: 1.45),
+                  ),
+                ),
+              const SizedBox(height: 4),
+              Text(c.source, style: t.bodySmall?.copyWith(color: AppTheme.onSurfaceDim)),
+            ]),
+          );
+        }),
     ]);
   }
 }

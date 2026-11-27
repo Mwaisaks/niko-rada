@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_state.dart';
 import 'theme/app_theme.dart';
@@ -9,6 +12,11 @@ import 'ui/settings_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Fonts come from assets/google_fonts/ only: no network request at launch, same look offline.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(['Outfit font'], await rootBundle.loadString('assets/google_fonts/OFL.txt'));
+  });
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState()..init(),

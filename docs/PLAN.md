@@ -92,7 +92,12 @@ Language design (to test on the borrowed phone):
       the cited steps dropped. Branch: links not in the account rejected. `test/prompt_injection_test.dart` (37 tests).
       Found: two off-topic injections pass the keyword gate (open risk 8 residual); tests show the output checks still
       contain them. Gate left unchanged during the freeze week.)
-- [ ] Design pass on the main flow (consistent, mobile-first, accessible).
+- [x] Design pass on the answer screen (consistent, mobile-first, accessible).
+      (27 Nov: emergency quick-call bar (999/112) at the top of every answer; verified contacts as tap-to-call buttons
+      parsed verbatim from the corpus card (`lib/models/contact_lines.dart`, `url_launcher`, dialer only, no CALL_PHONE);
+      guided steps as numbered rows with citation markers; Outfit font bundled and runtime font fetching off (it was
+      fetched from Google at every launch: broken offline and a network request in a crisis app). Other screens not
+      re-designed.)
 - [ ] Only if it improves the demo: Remote Config for routing defaults.
 
 ## Phase 4 — Fri 27 Nov: QA and freeze
