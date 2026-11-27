@@ -104,6 +104,8 @@ Language design (to test on the borrowed phone):
 - [ ] Test matrix: online/offline × Nano present/absent × consent given/denied × cloud error × EN/SW/Sheng.
       Include a row for **on-device Kiswahili/Sheng output quality** (Nano phone, airplane mode).
       Log results in `docs/TEST_MATRIX.md`.
+      (27 Nov: matrix written; automated half mapped to tests (287 passing); phone half (rows 1–12 on the A16) for the
+      owner; Nano rows 13–15 blocked without a Nano phone.)
 - [ ] Release APK built and installed from a clean state on both phones.
 - [ ] **Feature freeze at end of Sat 28 Nov** (moved from Fri 27 Nov by the owner).
 - [ ] ~~PIN-gate + panic-wipe~~ **Cut** by the owner (27 Nov).
