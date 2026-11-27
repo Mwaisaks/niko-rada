@@ -66,6 +66,7 @@ Rules:
 
   static final _lineRe = RegExp(r'^([A-Za-z]+)\s*:\s*(.*)$');
   static final _digitRun = RegExp(r'\d+');
+  static final _link = RegExp(r'(https?://\S+|www\.\S+|\S+@\S+\.\S+)', caseSensitive: false);
 
   /// Strict parser. Throws [BranchParseException] on anything but the seven labelled lines with valid values.
   static IncidentDraft parse(String raw, {required String account}) {
@@ -101,6 +102,16 @@ Rules:
       for (final m in _digitRun.allMatches(values[l]!)) {
         if (!accountDigits.contains(m.group(0))) {
           throw BranchParseException('$l contains a number not in the account: "${m.group(0)}"');
+        }
+      }
+    }
+
+    // Same rule for links and e-mail addresses: the model may not add any that the person did not write.
+    final accountLower = account.toLowerCase();
+    for (final l in labels) {
+      for (final m in _link.allMatches(values[l]!)) {
+        if (!accountLower.contains(m.group(0)!.trim().toLowerCase())) {
+          throw BranchParseException('$l contains a link or address not in the account: "${m.group(0)!.trim()}"');
         }
       }
     }

@@ -92,28 +92,58 @@ Rules:
 $sources<situation>${_clean(query, maxQueryChars)}</situation>''';
   }
 
+  static const maxSteps = 5;
+  static const maxOutputChars = 1500;
+
   static final _step = RegExp(r'^\s*\d+[.)]\s+\S');
   static final _citation = RegExp(r'\[([a-z0-9][a-z0-9-]*)\]');
   // A run of 3+ digits, allowing spaces/dashes inside (phone-like). Four-digit years 1900–2099 are allowed.
   static final _digits = RegExp(r'\+?\d[\d \-]{1,}\d');
+  // Links, e-mail addresses and handles: none are in the corpus steps, and a link from the model could be phishing.
+  static final _link = RegExp(
+      r'(https?://|www\.|\b[a-z0-9-]+\.(com|org|net|ke|io|co|info|me|ly|app|link)\b|\S+@\S+\.\S+|(^|\s)@\w{3,})',
+      caseSensitive: false);
+  // Prompt structure echoed back: a sign the model followed instructions inside the situation or leaked the prompt.
+  static final _promptEcho = RegExp(
+      r'(</?\s*(source|situation)\b|\bsource id=|^\s*rules\s*:|\bignore (all |any |the )?(previous |above )?(rules|instructions)\b|\bsystem prompt\b|\byou are niko rada\b)',
+      caseSensitive: false,
+      multiLine: true);
 
   /// Strict validation. Returns null for the NOT_COVERED sentinel. Throws [GuideValidationException] if the output
-  /// is empty, has no numbered steps, has a step without a citation, cites an id that was not provided, or contains a
-  /// phone-like number.
+  /// is empty or too long, has no numbered steps, has a step without a citation, cites an id that was not provided,
+  /// contains a phone-like number, a link or e-mail address, echoes the prompt structure, mixes NOT_COVERED with steps,
+  /// or has a step that shares no content word with the card it cites (an invented step).
+  ///
+  /// Only the numbered, cited steps are returned (at most [maxSteps]); any other prose the model added is dropped, so
+  /// nothing ungrounded is shown.
   static ({String text, Set<String> citedIds})? validate(String raw, List<KnowledgeCard> cards) {
     final text = raw.trim();
     if (text.isEmpty) throw const GuideValidationException('empty output');
     if (text.toUpperCase().replaceAll(RegExp(r'[^A-Z_]'), '') == notCoveredSentinel) return null;
+    if (text.length > maxOutputChars) throw const GuideValidationException('output too long');
+    if (text.toUpperCase().contains(notCoveredSentinel)) {
+      throw const GuideValidationException('NOT_COVERED mixed with other text');
+    }
+    if (_promptEcho.hasMatch(text)) throw const GuideValidationException('echoes the prompt or injected instructions');
+    final link = _link.firstMatch(text);
+    if (link != null) throw GuideValidationException('contains a link or address: "${link.group(0)!.trim()}"');
 
-    final allowed = {for (final c in cards) c.id};
+    final byId = {for (final c in cards) c.id: c};
     final cited = {for (final m in _citation.allMatches(text)) m.group(1)!};
-    final unknown = cited.difference(allowed);
+    final unknown = cited.difference(byId.keys.toSet());
     if (unknown.isNotEmpty) throw GuideValidationException('cites a source that was not provided: ${unknown.join(', ')}');
 
-    final steps = text.split('\n').where(_step.hasMatch).toList();
+    final steps = text.split('\n').where(_step.hasMatch).map((s) => s.trim()).toList();
     if (steps.isEmpty) throw const GuideValidationException('no numbered steps');
-    for (final s in steps) {
-      if (!_citation.hasMatch(s)) throw GuideValidationException('uncited step: "${s.trim()}"');
+    final kept = steps.take(maxSteps).toList();
+    final usedIds = <String>{};
+    for (final s in kept) {
+      final ids = {for (final m in _citation.allMatches(s)) m.group(1)!};
+      if (ids.isEmpty) throw GuideValidationException('uncited step: "$s"');
+      if (!_sharesContentWord(s.replaceAll(_citation, ' '), [for (final id in ids) byId[id]!])) {
+        throw GuideValidationException('step not grounded in its cited source: "$s"');
+      }
+      usedIds.addAll(ids);
     }
 
     // Card ids contain digits ("teargas-001"); remove citations before looking for numbers.
@@ -124,7 +154,22 @@ $sources<situation>${_clean(query, maxQueryChars)}</situation>''';
         throw GuideValidationException('contains a phone-like number: "${m.group(0)}"');
       }
     }
-    return (text: text, citedIds: cited);
+    return (text: kept.join('\n'), citedIds: usedIds);
+  }
+
+  /// True if [step] has at least one content word (or its English/Kiswahili stem) that also occurs in one of [cards]
+  /// (title or content, English or Kiswahili). Weak on purpose: it catches wholly invented steps, not paraphrase.
+  static bool _sharesContentWord(String step, List<KnowledgeCard> cards) {
+    Set<String> forms(String text) => {
+          for (final t in RagService.tokenise(text)) ...RagService.formsOf(t, english: true, kiswahili: true),
+        };
+    final stepForms = forms(step.replaceFirst(RegExp(r'^\s*\d+[.)]\s+'), ''));
+    if (stepForms.isEmpty) return false;
+    for (final c in cards) {
+      final cardForms = forms('${c.titleEn} ${c.titleSw} ${c.contentEn} ${c.contentSw}');
+      if (stepForms.any(cardForms.contains)) return true;
+    }
+    return false;
   }
 }
 

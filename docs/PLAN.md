@@ -85,8 +85,13 @@ Language design (to test on the borrowed phone):
 - Acceptance: toggling airplane mode visibly changes behaviour, no crashes.
 
 ## Phase 3 — Thu 26 Nov: safety, design, Firebase extras
-- [ ] Safety layer: refusal gate stays before the model, output checks, vetted contacts constants, human escalation path,
+- [x] Safety layer: refusal gate stays before the model, output checks, vetted contacts constants, human escalation path,
       disclaimers, prompt-injection tests.
+      (27 Nov: Guide output checks added: links/e-mails/handles, prompt or injected-instruction echo, NOT_COVERED mixed
+      with steps, length cap, max 5 steps, each step must share a content word with the card it cites, prose outside
+      the cited steps dropped. Branch: links not in the account rejected. `test/prompt_injection_test.dart` (37 tests).
+      Found: two off-topic injections pass the keyword gate (open risk 8 residual); tests show the output checks still
+      contain them. Gate left unchanged during the freeze week.)
 - [ ] Design pass on the main flow (consistent, mobile-first, accessible).
 - [ ] Only if it improves the demo: Remote Config for routing defaults.
 

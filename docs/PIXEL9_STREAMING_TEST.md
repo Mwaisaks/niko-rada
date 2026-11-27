@@ -31,8 +31,8 @@ page doesn't state (APK install mechanics, logcat, screenshots, network, Play St
    first, then (b).
    Confirm the token is inside without printing it:
    `aapt2 dump resources ~/nr-spike-judge.apk | grep -c firebase_app_check_debug_token` → `1`.
-   - Whether `main_spike.dart` builds in judge mode has **not been tried yet**. Run build (a) now. If it fails, fall
-     back to the debug spike build in `docs/SPIKE_CHECKLIST.md` B2.4 (`flutter build apk --debug -t lib/main_spike.dart`).
+   - Build (a) was tried on 27 Nov: it builds (18.8 MB, about 7 minutes). If it ever fails, fall back to the debug
+     spike build in `docs/SPIKE_CHECKLIST.md` B2.4 (`flutter build apk --debug -t lib/main_spike.dart`).
 3. Install the latest stable Android Studio (Jellyfish or later), open this repo's `android/` folder or the Flutter
    project, and make sure `adb` works locally (`adb version`).
 4. Open a terminal for the logs, ready to run (step 2.5):

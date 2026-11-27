@@ -27,7 +27,7 @@ void main() {
 
     test('accepts citations of both cards and a constitution year', () {
       final v = Guide.validate(
-          '1. Move upwind. [${id(0)}]\n2. Under the Constitution of Kenya 2010 you may protest. [${id(1)}]', cards);
+          '1. Move upwind. [${id(0)}]\n2. Since 2019 the advice is: wear goggles, not glasses. [${id(1)}]', cards);
       expect(v!.citedIds, {id(0), id(1)});
     });
 
